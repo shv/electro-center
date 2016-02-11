@@ -1,0 +1,39 @@
+{% extends parent_template|default:"mainframe/base.html" %}
+
+{% block header %}
+{{ zone.name }}
+{% endblock header %}
+
+
+{% block content %}
+    <div class="row">
+    
+    {% for lamp_ in zone.lamps.all %}
+        <div class="col-lg-4" id="lamp-{{ lamp_.id }}">
+            <div class="panel {% if lamp_.on == None %}panel-danger{% elif lamp_.on %}panel-primary{% else %}panel-default{% endif %}">
+                <div class="panel-heading">
+                    {{ lamp_.name }}
+                </div>
+                <div class="panel-body">
+                    <p style="text-align: center">
+                        <input type="checkbox" data-on="{% url 'switch' lamp_.id 'on' %}" data-off="{% url 'switch' lamp_.id 'off' %}" class="lamp-switcher" style="display: none"{% if lamp_.on %} checked{% endif %}>
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% if forloop.counter|divisibleby:3 %}
+            </div>
+            <div class="row">
+        {% endif %}
+
+    
+    {% endfor %}
+    </div>
+    <div class="row">
+        <div class="col-lg-4" style="text-align: center">
+            <button type="button" data-url="{% url 'switch_zone' zone.id 'off' %}" class="btn btn-default zone-switcher">Выключить все</button>
+            <button type="button" data-url="{% url 'switch_zone' zone.id 'on' %}" class="btn btn-primary zone-switcher">Включить все</button>
+        </div>
+    </div>
+
+{% endblock content %}

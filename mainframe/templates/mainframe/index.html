@@ -1,0 +1,15 @@
+{% extends parent_template|default:"mainframe/base.html" %}
+
+{% block header %}
+Управление электрикой
+{% endblock header %}
+
+
+{% block content %}
+    <div class="row">
+        <div class="col-lg-4" style="text-align: center">
+            <button type="button" data-url="{% url 'switch_all' 'off' %}" class="btn btn-default zone-switcher">Выключить все</button>
+            <button type="button" data-url="{% url 'switch_all' 'on' %}" class="btn btn-primary zone-switcher">Включить все</button>
+        </div>
+    </div>
+{% endblock content %}
