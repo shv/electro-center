@@ -37,7 +37,7 @@ def update_node(node):
     logger.info("Node: %s" % node)
     try:
         conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-        conn.request("GET", "/switch")
+        conn.request("GET", "/status")
         response = conn.getresponse()
     except:
         return
@@ -128,6 +128,8 @@ def switch(request, lamp_id, status):
 
 @json_view
 def switch_zone(request, zone_id, status):
+    """Работа с зоной по нодам
+    """
     zone = Zone.objects.get(id=zone_id)
     nodes = {}
     for lamp in zone.lamps.all():
@@ -174,6 +176,45 @@ def switch_zone(request, zone_id, status):
                 lamp_.save()
 
     return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in zone.lamps.all()]
+
+
+@json_view
+def switch_zone_by_lamps(request, zone_id, status):
+    """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
+    """
+    zone = Zone.objects.get(id=zone_id)
+    for lamp in zone.lamps.all():
+        node = lamp.node
+        logger.info("Node: %s" % node)
+        try:
+            conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
+            conn.request("GET", "/switch?%s=%s" % (status, lamp.pin))
+            response = conn.getresponse()
+        except:
+            continue
+
+        if response.status == 200:
+            data = json.loads(response.read())
+            conn.close()
+            logger.info(data)
+            data_dict = {d["pin"]:d for d in data}
+            logger.info(data_dict)
+            for lamp_ in node.lamp_set.all():
+                lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
+                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
+                lamp_.save()
+
+            node.last_answer_time = timezone.now()
+            node.save()
+
+        else:
+            for lamp_ in node.lamp_set.all():
+                lamp_.on = None
+                lamp_.save()
+
+    return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in zone.lamps.all()]
+
+
 
 @json_view
 def switch_all(request, status):
