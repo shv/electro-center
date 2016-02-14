@@ -16,7 +16,7 @@
                 </div>
                 <div class="panel-body">
                     <p style="text-align: center">
-                        <input type="checkbox" data-on="{% url 'switch' lamp_.id 'on' %}" data-off="{% url 'switch' lamp_.id 'off' %}" class="lamp-switcher" style="display: none"{% if lamp_.on %} checked{% endif %}>
+                        <input type="checkbox" data-toggle="toggle" data-url-on="{% url 'switch' lamp_.id 'on' %}" data-url-off="{% url 'switch' lamp_.id 'off' %}" data-on="Enabled" data-off="Disabled" class="" style="display: none"{% if lamp_.on %} checked{% endif %}>
                     </p>
                 </div>
             </div>

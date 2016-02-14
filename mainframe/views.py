@@ -30,6 +30,7 @@ def render(f):
     return tmp
 
 
+# TODO: Перенести в модель
 def update_node(node):
     """ Сбор данных с ардуинок
         Вынести в отдельную периодическую таску
@@ -95,39 +96,6 @@ def lamps(request, node_id):
 
 @json_view
 def switch(request, lamp_id, status):
-    lamp = Lamp.objects.get(id=lamp_id)
-    node = lamp.node
-    logger.info("Node: %s" % node)
-    try:
-        conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-        conn.request("GET", "/switch?%s=%s" % (status, lamp.pin))
-        response = conn.getresponse()
-    except:
-        return
-
-    if response.status == 200:
-        data = json.loads(response.read())
-        conn.close()
-        logger.info(data)
-        data_dict = {d["pin"]:d for d in data}
-        logger.info(data_dict)
-        for lamp_ in node.lamp_set.all():
-            lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
-            logger.info("%s: %s" % (lamp_.pin, lamp_.on))
-            lamp_.save()
-        node.last_answer_time = timezone.now()
-        node.save()
-
-    else:
-        lamp.on = None
-        logger.info("%s: %s" % (lamp.pin, lamp.on))
-        lamp.save()
-
-    return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
-
-
-@json_view
-def switch_new(request, lamp_id, status):
     """По одной лампе в формате запроса: ?9=true
     """
     lamp = Lamp.objects.get(id=lamp_id)
@@ -138,7 +106,7 @@ def switch_new(request, lamp_id, status):
         conn.request("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'))
         response = conn.getresponse()
     except:
-        return
+        return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
 
     if response.status == 200:
         data = json.loads(response.read())
@@ -159,110 +127,6 @@ def switch_new(request, lamp_id, status):
         lamp.save()
 
     return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
-
-
-@json_view
-def switch_zone(request, zone_id, status):
-    """Работа с зоной по нодам
-    """
-    zone = Zone.objects.get(id=zone_id)
-    nodes = {}
-    for lamp in zone.lamps.all():
-        node = lamp.node
-        logger.info("Node: %s" % node)
-        if node.id not in nodes:
-            nodes[node.id] = {"node": node, "lamps": []}
-        nodes[node.id]["lamps"].append(lamp)
-
-    logger.info("Nodes: %s" % nodes)
-    for item in nodes.values():
-        node = item["node"]
-        args = []
-        for lamp in item["lamps"]:
-            # Эту строку позже переписать на правильную
-            args.append("%s=%s" % (status, lamp.pin))
-
-        url = "/switch?%s" % "&".join(args)
-        logger.info("Url: %s" % url)
-        try:
-            conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-            conn.request("GET", url)
-            response = conn.getresponse()
-        except:
-            continue
-
-        if response.status == 200:
-            data = json.loads(response.read())
-            conn.close()
-            logger.info(data)
-            data_dict = {d["pin"]:d for d in data}
-            logger.info(data_dict)
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
-                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
-                lamp_.save()
-
-            node.last_answer_time = timezone.now()
-            node.save()
-
-        else:
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = None
-                lamp_.save()
-
-    return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in zone.lamps.all()]
-
-
-@json_view
-def switch_zone_new(request, zone_id, status):
-    """Работа с зоной по нодам в формате запроса: ?1=0&2=1&3=1&4=0
-    """
-    zone = Zone.objects.get(id=zone_id)
-    nodes = {}
-    for lamp in zone.lamps.all():
-        node = lamp.node
-        logger.info("Node: %s" % node)
-        if node.id not in nodes:
-            nodes[node.id] = {"node": node, "lamps": []}
-        nodes[node.id]["lamps"].append(lamp)
-
-    logger.info("Nodes: %s" % nodes)
-    for item in nodes.values():
-        node = item["node"]
-        args = []
-        for lamp in item["lamps"]:
-            # Эту строку позже переписать на правильную
-            args.append("%s=%s" % (lamp.pin, 1 if status == 'on' else 0))
-
-        url = "/switch?%s" % "&".join(args)
-        logger.info("Url: %s" % url)
-        try:
-            conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-            conn.request("GET", url)
-            response = conn.getresponse()
-        except:
-            continue
-
-        if response.status == 200:
-            data = json.loads(response.read())
-            conn.close()
-            logger.info(data)
-            data_dict = {d["pin"]:d for d in data}
-            logger.info(data_dict)
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
-                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
-                lamp_.save()
-
-            node.last_answer_time = timezone.now()
-            node.save()
-
-        else:
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = None
-                lamp_.save()
-
-    return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in zone.lamps.all()]
 
 
 @json_view
@@ -304,41 +168,38 @@ def switch_zone_by_lamps(request, zone_id, status):
 
 
 @json_view
-def switch_all(request, status):
+def switch_all_by_lamps(request, status):
     lamps = []
     for node in Node.objects.all():
-        args = []
         for lamp in node.lamp_set.all():
-            # Эту строку позже переписать на правильную
-            args.append("%s=%s" % (status, lamp.pin))
+            node = lamp.node
+            logger.info("Node: %s" % node)
+            try:
+                conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
+                conn.request("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'))
+                response = conn.getresponse()
+            except:
+                break
 
-        url = "/switch?%s" % "&".join(args)
-        logger.info("Url: %s" % url)
-        try:
-            conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-            conn.request("GET", url)
-            response = conn.getresponse()
-        except:
-            continue
+            if response.status == 200:
+                data = json.loads(response.read())
+                conn.close()
+                logger.info(data)
+                data_dict = {d["pin"]:d for d in data}
+                logger.info(data_dict)
+                for lamp_ in node.lamp_set.all():
+                    lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
+                    logger.info("%s: %s" % (lamp_.pin, lamp_.on))
+                    lamp_.save()
 
-        if response.status == 200:
-            data = json.loads(response.read())
-            conn.close()
-            logger.info(data)
-            data_dict = {d["pin"]:d for d in data}
-            logger.info(data_dict)
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = data_dict[lamp_.pin]["on"] if lamp_.pin in data_dict else None
-                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
-                lamp_.save()
+                node.last_answer_time = timezone.now()
+                node.save()
 
-            node.last_answer_time = timezone.now()
-            node.save()
+            else:
+                for lamp_ in node.lamp_set.all():
+                    lamp_.on = None
+                    lamp_.save()
 
-        else:
-            for lamp_ in node.lamp_set.all():
-                lamp_.on = None
-                lamp_.save()
 
         lamps.append([model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()])
 
