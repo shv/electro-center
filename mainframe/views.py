@@ -53,6 +53,12 @@ def update_node(node):
             lamp.on = data_dict[lamp.pin]["on"] if lamp.pin in data_dict else None
             logger.info("%s: %s" % (lamp.pin, lamp.on))
             lamp.save()
+        for sensor in node.sensor_set.all():
+            sensor.value = data_dict[sensor.pin]["value"] if sensor.pin in data_dict else None
+            sensor.time = timezone.now()
+            logger.info("%s: %s" % (sensor.pin, sensor.value))
+            sensor.save()
+            sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type)
         node.last_answer_time = timezone.now()
         node.save()
 
@@ -201,6 +207,6 @@ def switch_all_by_lamps(request, status):
                     lamp_.save()
 
 
-        lamps.append([model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()])
+        lamps.extend([model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()])
 
-    return [lamps]
+    return lamps

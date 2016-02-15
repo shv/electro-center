@@ -4,18 +4,22 @@ $(function() {
         this.id = id;
         this.switcher = $("#lamp-" + this.id + " input[data-toggle=toggle]");
         this.switchOn = function (){
+            if (!this.switcher.length) return;
             this.switcher.bootstrapToggle('on');
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-danger').addClass('panel-primary');
         };
         this.switchOff = function(){
+            if (!this.switcher.length) return;
             this.switcher.bootstrapToggle('off');
             $('#lamp-'+this.id).find('.panel').removeClass('panel-primary').removeClass('panel-danger').addClass('panel-default');
         };
         this.switchError = function(){
+            if (!this.switcher.length) return;
             this.switcher.bootstrapToggle('off');
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-primary').addClass('panel-danger');
         };
         this.switchByStatus = function(status){
+            if (!this.switcher.length) return;
             if (status === true) {
                 this.switchOn();
             } else if (status === false) {

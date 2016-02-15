@@ -35,4 +35,24 @@
         </div>
     </div>
     <hr>
+    <div class="row">
+    {% for sensor_ in zone.sensors.all %}
+        <div class="col-lg-4" id="sensor-{{ sensor_.id }}">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    {{ sensor_.name }}
+                </div>
+                <div class="panel-body">
+                    <p style="text-align: center">
+                        {{ sensor_.name }}: {{ sensor_.value }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% if forloop.counter|divisibleby:3 %}
+            </div>
+            <div class="row">
+        {% endif %}
+    {% endfor %}
+    </div>
 {% endblock content %}

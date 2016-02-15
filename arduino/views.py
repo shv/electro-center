@@ -3,6 +3,7 @@ from jsonview.decorators import json_view #https://pypi.python.org/pypi/django-j
 from .models import Pin
 import logging
 import os
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,11 @@ node_id = os.environ.get('IHOME_ARDUINO_ID', 1)
 @json_view
 def status(request):
     logger.debug("Node = %s" % node_id)
-    return [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
+
+    result = [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
+    rand = random.randint(700,800)
+    result.append({"value": rand, "pin": 16})
+    return result
 
 
 @json_view
@@ -30,5 +35,8 @@ def switch(request):
         pin.on = True if req[0][1][0] == 'true' else False
         pin.save()
 
-
-    return [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
+    result = [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
+    rand = random.randint(700,800)
+    result.append({"value": rand, "pin": 16})
+    
+    return result

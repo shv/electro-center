@@ -40,6 +40,59 @@ class Lamp(models.Model):
 
     class Meta:
         ordering = ('name',)
+        unique_together = ('node', 'pin',)
+
+
+@python_2_unicode_compatible  # only if you need to support Python 2
+class SensorType (models.Model):
+    """Типы датчиков
+       (датчики света, температуры, влажности...)
+    """
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return "%s" % (self.name)
+
+    class Meta:
+        ordering = ('name',)
+
+
+@python_2_unicode_compatible  # only if you need to support Python 2
+class Sensor (models.Model):
+    """Набор сенсоров, значения которых изменяются со временем
+       (датчики света, температуры, влажности...)
+    """
+    node = models.ForeignKey(Node, on_delete=models.CASCADE)
+    type = models.ForeignKey(SensorType, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    value = models.IntegerField(default=None, null=True)
+    pin = models.IntegerField(default=None, null=True)
+    time = models.DateTimeField('Last value time')
+
+    def __str__(self):
+        return "%s (%s) on %s: %s [%s]" % (self.name, self.type, self.node, self.value, self.time)
+
+    class Meta:
+        ordering = ('name',)
+        unique_together = ('node', 'pin',)
+
+
+@python_2_unicode_compatible  # only if you need to support Python 2
+class SensorHistory (models.Model):
+    """История значений сенсоров
+    """
+    sensor = models.ForeignKey(Sensor, on_delete=models.CASCADE)
+    value = models.IntegerField(default=None, null=True)
+    node = models.ForeignKey(Node, on_delete=models.SET_NULL, default=None, null=True)
+    pin = models.IntegerField(default=None, null=True)
+    time = models.DateTimeField('Value at time')
+    type = models.ForeignKey(SensorType, on_delete=models.SET_NULL, default=None, null=True)
+
+    def __str__(self):
+        return "[%s]: %s on %s [%s]" % (self.time, self.value, self.node, self.pin)
+
+    class Meta:
+        ordering = ('time', 'node')
 
 
 @python_2_unicode_compatible  # only if you need to support Python 2
@@ -48,6 +101,7 @@ class Zone(models.Model):
     """
     name = models.CharField(max_length=255)
     lamps = models.ManyToManyField(Lamp)
+    sensors = models.ManyToManyField(Sensor)
 
     def __str__(self):
         return "%s" % self.name
