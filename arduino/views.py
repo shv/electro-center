@@ -18,37 +18,16 @@ def status(request):
 
 @json_view
 def switch(request):
-    """Multiswitch. For all pins and statuses
-    """
-    req = dict(request.GET.lists())
-    logger.debug("Node = %s, req: %s" % (node_id, req))
-    on = req.get("on")
-    if on:
-        for pin_id in on:
-            pin = Pin.objects.get(pin=pin_id, node=node_id)
-            pin.on = True
-            pin.save()
-
-    off = req.get('off')
-    if off:
-        for pin_id in off:
-            pin = Pin.objects.get(pin=pin_id, node=node_id)
-            pin.on = False
-            pin.save()
-
-    return [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
-
-
-@json_view
-def switch_one(request):
     """Simple switch. For one pin only
     """
     req = request.GET.lists()
     logger.debug("Node = %s, req: %s" % (node_id, req))
-    if len(req) == 1 and req[0][0] in ['on', 'off']:
-        pin_id = req[0][1][0]
+    if len(req) == 1 and req[0][1][0] in ['true', 'false']:
+        logger.debug("Request: %s" % req[0][1][0])
+        pin_id = req[0][0]
+        logger.debug("Pin id: %s" % req[0][0])
         pin = Pin.objects.get(pin=pin_id, node=node_id)
-        pin.on = True if req[0][0] == 'on' else False
+        pin.on = True if req[0][1][0] == 'true' else False
         pin.save()
 
 
