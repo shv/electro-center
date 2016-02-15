@@ -6,12 +6,14 @@ import httplib, urllib
 import json
 
 from django.forms.models import model_to_dict
+from django.db.models import Sum, Count, Avg, Min, Max
 from django.http import HttpResponse
+from django.db import connection
 from django.template import loader
 from django.utils import timezone
 from jsonview.decorators import json_view #https://pypi.python.org/pypi/django-jsonview
 
-from .models import Node, Lamp, Zone
+from .models import Node, Lamp, Zone, Sensor
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
@@ -65,7 +67,8 @@ def update_node(node):
 @render
 def index(request):
     return dict(
-        template = 'mainframe/index.html'
+        template = 'mainframe/index.html',
+        sensors = Sensor.objects.all()
     )
 
 
@@ -210,3 +213,23 @@ def switch_all_by_lamps(request, status):
         lamps.extend([model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()])
 
     return lamps
+
+
+@json_view
+def get_sensor_data_for_morris(request, sensor_id):
+    sensor = Sensor.objects.get(id=sensor_id)
+    truncate_date = connection.ops.date_trunc_sql('hour', 'time')
+    qs = sensor.sensorhistory_set.extra({'hour':truncate_date})
+    report = qs.values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
+
+    result = []
+    for item in report:
+        result.append({
+            'time': item['hour'].strftime("%Y-%m-%d %H:00:00"),
+            'avg': int(item['value__avg']),
+            'min': int(item['value__min']),
+            'max': int(item['value__max']),
+            'count': int(item['id__count'])
+        });
+
+    return result

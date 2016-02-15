@@ -63,4 +63,26 @@ $(function() {
         }
     });
 
+    $(".morris-area-chart").each(function(index){
+        var obj = $(this),
+            url = obj.attr('data-url');
+        $.get(url, function( data ) {
+            Morris.Area({
+                element: obj.attr('id'),
+                data: data,
+                xkey: 'time',
+                ykeys: ['max', 'avg', 'min'],
+                labels: ['Max', 'Avg', 'Min'],
+                lineColors: ['blue', 'red', 'green'],
+                fillOpacity: 0.7,
+                pointSize: 2,
+                hideHover: 'auto',
+                behaveLikeLine: true,
+                ymin: 'auto',
+                ymax: 'auto',
+                resize: true
+            });
+        });
+    });
+
 });

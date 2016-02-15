@@ -19,7 +19,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
     #    for node_id in options['node_id']:
-        while(1):
+        while True:
             early_than = timezone.now() - timedelta(seconds=REFRESH_DELAY);
             for node in Node.objects.filter(last_answer_time__lt=early_than).all():
                 # TODO: Перенести в модель

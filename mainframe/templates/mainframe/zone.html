@@ -55,4 +55,23 @@
         {% endif %}
     {% endfor %}
     </div>
+    {% for sensor_ in zone.sensors.all %}
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    {{ sensor_.name }}
+                </div>
+                <!-- /.panel-heading -->
+                <div class="panel-body">
+                    <div id="chart-{{ sensor_.id }}" class="morris-area-chart" style="height: 250px;" data-url="{% url 'get_sensor_data_for_morris' sensor_.id %}"></div>
+                </div>
+                <!-- /.panel-body -->
+            </div>
+            <!-- /.panel -->
+        </div>
+        <!-- /.col-lg-12 -->
+    </div>
+    {% endfor %}
+
 {% endblock content %}
