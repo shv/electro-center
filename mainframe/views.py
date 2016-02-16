@@ -11,6 +11,7 @@ from django.http import HttpResponse
 from django.db import connection
 from django.template import loader
 from django.utils import timezone
+from datetime import timedelta
 from jsonview.decorators import json_view #https://pypi.python.org/pypi/django-jsonview
 
 from .models import Node, Lamp, Zone, Sensor
@@ -31,39 +32,6 @@ def render(f):
 
     return tmp
 
-
-# TODO: Перенести в модель
-def update_node(node):
-    """ Сбор данных с ардуинок
-        Вынести в отдельную периодическую таску
-    """
-    logger.info("Node: %s" % node)
-    try:
-        conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-        conn.request("GET", "/status")
-        response = conn.getresponse()
-    except:
-        return
-
-    if response.status == 200:
-        data = json.loads(response.read())
-        conn.close()
-        logger.info(data)
-        data_dict = {d["pin"]:d for d in data}
-        logger.info(data_dict)
-        for lamp in node.lamp_set.all():
-            lamp.on = data_dict[lamp.pin]["on"] if lamp.pin in data_dict else None
-            logger.info("%s: %s" % (lamp.pin, lamp.on))
-            lamp.save()
-        for sensor in node.sensor_set.all():
-            sensor.value = data_dict[sensor.pin]["value"] if sensor.pin in data_dict else None
-            sensor.time = timezone.now()
-            logger.info("%s: %s" % (sensor.pin, sensor.value))
-            sensor.save()
-            sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type)
-        node.last_answer_time = timezone.now()
-        node.save()
-
 @render
 def index(request):
     return dict(
@@ -76,7 +44,7 @@ def index(request):
 def zone(request, zone_id):
     zone = Zone.objects.get(id=zone_id)
     for node in zone.nodes():
-        update_node(node)
+        node.refresh_all()
 
     return dict(
         template = 'mainframe/zone.html',
@@ -87,7 +55,7 @@ def zone(request, zone_id):
 @render
 def node(request, node_id):
     node = Node.objects.get(id=node_id)
-    update_node(node)
+    node.refresh_all()
     return dict(
         template = 'mainframe/node.html',
         active_menu = 'nodes',
@@ -98,7 +66,7 @@ def node(request, node_id):
 @json_view
 def lamps(request, node_id):
     node = Node.objects.get(id=node_id)
-    update_node(node)
+    node.refresh_all()
 
     return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()]
 
@@ -220,12 +188,12 @@ def get_sensor_data_for_morris(request, sensor_id):
     sensor = Sensor.objects.get(id=sensor_id)
     truncate_date = connection.ops.date_trunc_sql('hour', 'time')
     qs = sensor.sensorhistory_set.extra({'hour':truncate_date})
-    report = qs.values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
+    report = qs.filter(time__gte=timezone.now() - timedelta(hours=24), time__lt=timezone.now()).values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
 
     result = []
     for item in report:
         result.append({
-            'time': item['hour'].strftime("%Y-%m-%d %H:00:00"),
+            'time': item['hour'].strftime("%Y-%m-%d %H:00:00%z"),
             'avg': int(item['value__avg']),
             'min': int(item['value__min']),
             'max': int(item['value__max']),

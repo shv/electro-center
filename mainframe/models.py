@@ -4,11 +4,16 @@
 from __future__ import unicode_literals
 
 import datetime
+import httplib, urllib
+import json
 
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+
+
+REQUEST_TIMEOUT = 1
 
 
 @python_2_unicode_compatible  # only if you need to support Python 2
@@ -21,6 +26,31 @@ class Node(models.Model):
 
     def __str__(self):
         return "%s (%s)" % (self.name, self.host)
+
+    def refresh_all(self):
+        """ Сбор данных с ардуинок
+        """
+        try:
+            conn = httplib.HTTPConnection(self.host, timeout=REQUEST_TIMEOUT)
+            conn.request("GET", "/status")
+            response = conn.getresponse()
+        except:
+            return
+
+        if response.status == 200:
+            data = json.loads(response.read())
+            conn.close()
+            data_dict = {d["pin"]:d for d in data}
+            for lamp in self.lamp_set.all():
+                lamp.on = data_dict[lamp.pin]["on"] if lamp.pin in data_dict else None
+                lamp.save()
+            for sensor in self.sensor_set.all():
+                sensor.value = data_dict[sensor.pin]["value"] if sensor.pin in data_dict else None
+                sensor.time = timezone.now()
+                sensor.save()
+                sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type)
+            self.last_answer_time = timezone.now()
+            self.save()
 
     class Meta:
         ordering = ('name',)

@@ -38,7 +38,7 @@
                 </div>
                 <div class="panel-body">
                     <p style="text-align: center">
-                        {{ sensor_.name }}: {{ sensor_.value }}
+                        <p  title="{{ sensor_.time }}">{{ sensor_.name }}: <strong>{{ sensor_.value }}</strong></p>
                     </p>
                 </div>
             </div>
@@ -51,6 +51,24 @@
     
     {% endfor %}
     </div>
+    {% for sensor_ in node.sensor_set.all %}
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    {{ sensor_.name }}
+                </div>
+                <!-- /.panel-heading -->
+                <div class="panel-body">
+                    <div id="chart-{{ sensor_.id }}" class="morris-area-chart" style="height: 250px;" data-url="{% url 'get_sensor_data_for_morris' sensor_.id %}"></div>
+                </div>
+                <!-- /.panel-body -->
+            </div>
+            <!-- /.panel -->
+        </div>
+        <!-- /.col-lg-12 -->
+    </div>
+    {% endfor %}
     <hr>
     <div class="row">
         Послений ответ был: {{ node.last_answer_time }}
