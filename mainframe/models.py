@@ -6,11 +6,15 @@ from __future__ import unicode_literals
 import datetime
 import httplib, urllib
 import json
+import logging
+
 
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+
+logger = logging.getLogger(__name__)
 
 
 REQUEST_TIMEOUT = 1
@@ -32,9 +36,13 @@ class Node(models.Model):
         """
         try:
             conn = httplib.HTTPConnection(self.host, timeout=REQUEST_TIMEOUT)
-            conn.request("GET", "/status")
+            conn.set_debuglevel(2)
+            conn.connect()
+            conn.putrequest("GET", "/status", True, True)
+            conn.endheaders()
             response = conn.getresponse()
         except:
+            logger.exception("Request exception")
             return
 
         if response.status == 200:

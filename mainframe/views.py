@@ -80,9 +80,12 @@ def switch(request, lamp_id, status):
     logger.info("Node: %s" % node)
     try:
         conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-        conn.request("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'))
+        conn.connect()
+        conn.putrequest("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'), True, True)
+        conn.endheaders()
         response = conn.getresponse()
     except:
+        logger.exception("Request exception")
         return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
 
     if response.status == 200:
@@ -116,9 +119,12 @@ def switch_zone_by_lamps(request, zone_id, status):
         logger.info("Node: %s" % node)
         try:
             conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-            conn.request("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'))
+            conn.connect()
+            conn.putrequest("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'), True, True)
+            conn.endheaders()
             response = conn.getresponse()
         except:
+            logger.exception("Request exception")
             continue
 
         if response.status == 200:
@@ -153,9 +159,12 @@ def switch_all_by_lamps(request, status):
             logger.info("Node: %s" % node)
             try:
                 conn = httplib.HTTPConnection(node.host, timeout=REQUEST_TIMEOUT)
-                conn.request("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'))
+                conn.connect()
+                conn.putrequest("GET", "/switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false'), True, True)
+                conn.endheaders()
                 response = conn.getresponse()
             except:
+                logger.exception("Request exception")
                 break
 
             if response.status == 200:

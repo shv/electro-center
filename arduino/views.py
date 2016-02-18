@@ -14,7 +14,6 @@ node_id = os.environ.get('IHOME_ARDUINO_ID', 1)
 @json_view
 def status(request):
     logger.debug("Node = %s" % node_id)
-
     result = [ { "pin": pin.pin, "on": pin.on } for pin in  Pin.objects.filter(node=node_id).all() ]
     rand = random.randint(700,800)
     result.append({"value": rand, "pin": 16})
