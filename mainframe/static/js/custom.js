@@ -30,6 +30,16 @@ $(function() {
         };
     }
 
+    function LampSlider(id){
+        this.id = id;
+        this.slider = $("#lamp-" + this.id + " .dimmer");
+        this.value = 0;
+        this.setValue = function (value){
+            this.value = value;
+            // Set value
+        };
+    }
+
     $(".zone-switcher").click(function(){
         var url = $(this).attr('data-url');
         need_request = false;
@@ -62,6 +72,51 @@ $(function() {
             })
         }
     });
+
+    /* Slider */
+    $(".dimmer").slider({
+        formatter: function(value) {
+            return value + '%';
+        }
+    });
+    $(".dimmer").on("change", function(slideEvt) {
+        var obj = $(this),
+            url = obj.attr('data-url') + slideEvt.value.newValue;
+        $.get(url, function( data ) {
+            console.log(data);
+        });
+    });
+    /* End Slider */
+
+    /* Autoupdate */
+    var autoUpdate = function(obj){
+        var url = obj.attr('data-url');
+
+        if (need_request) {
+            need_request = false;
+            $.get(url, function( data ) {
+                for (var i=0;i<data.length;i++) {
+                    if (data[i].object_type == 'lamp') {
+                        var lamp = data[i],
+                            switcher = new LampSwitcher(lamp.id);
+
+                        switcher.switchByStatus(lamp.on);
+                    };
+                    if (data[i].object_type == 'sensor') {
+                        var sensor = data[i];
+                        $('#sensor-'+sensor.id).find('div.panel-body p').html(sensor.name+": "+sensor.value);
+                    }
+                }
+                need_request = true;
+            })
+        }
+    };
+
+    $(".autoupdate").each(function(obj){
+        var obj = $(this);
+        setInterval(function(){autoUpdate(obj)}, 1000);
+    });
+    /* End Autoupdate */
 
     $(".morris-area-chart").each(function(index){
         var obj = $(this),

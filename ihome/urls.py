@@ -15,12 +15,13 @@ Including another URLconf
 """
 from django.conf.urls import include, url
 from django.contrib import admin
-from arduino.views import switch, status
+from arduino.views import switch, status, dim
 
 urlpatterns = [
     url(r'^arduino/', include('arduino.urls')),
     url(r'^mainframe/', include('mainframe.urls')),
     url(r'^admin/', admin.site.urls),
     url(r'^switch', switch),
+    url(r'^dim', dim),
     url(r'^status', status),
 ]

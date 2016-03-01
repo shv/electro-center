@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.utils import timezone
 from time import sleep
 
-REFRESH_DELAY=3 # seconds
+REFRESH_DELAY=1 # seconds
 
 # https://docs.djangoproject.com/en/dev/howto/custom-management-commands/
 

@@ -13,6 +13,8 @@ class Pin(models.Model):
     on = models.NullBooleanField(default=None, null=True)
     pin = models.IntegerField(default=None)
     node = models.IntegerField(default=0)
+    dimmable = models.BooleanField(default=False)
+    level = models.IntegerField(default=0)
 
     def __str__(self):
         return "%s (%s): %s" % (self.pin, self.node, self.on)

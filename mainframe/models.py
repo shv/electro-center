@@ -31,34 +31,62 @@ class Node(models.Model):
     def __str__(self):
         return "%s (%s)" % (self.name, self.host)
 
-    def refresh_all(self):
-        """ Сбор данных с ардуинок
-        """
+
+    def make_request(self, action, lamp=None):
         try:
             conn = httplib.HTTPConnection(self.host, timeout=REQUEST_TIMEOUT)
-            conn.set_debuglevel(2)
             conn.connect()
-            conn.putrequest("GET", "/status", True, True)
+            conn.putrequest("GET", "/%s" % action, True, True)
             conn.endheaders()
             response = conn.getresponse()
         except:
             logger.exception("Request exception")
-            return
+            for lamp_ in self.lamp_set.all():
+                lamp_.on = None
+                lamp_.save()
+
+            return None
 
         if response.status == 200:
             data = json.loads(response.read())
             conn.close()
+            logger.info(data)
             data_dict = {d["pin"]:d for d in data}
-            for lamp in self.lamp_set.all():
-                lamp.on = data_dict[lamp.pin]["on"] if lamp.pin in data_dict else None
-                lamp.save()
+            logger.info(data_dict)
+            for lamp_ in self.lamp_set.all():
+                if lamp_.pin in data_dict:
+                    lamp_.on = data_dict[lamp_.pin]["on"]
+                    lamp_.level = data_dict[lamp_.pin].get("level", 0) if lamp_.pin in data_dict else 0
+                    # Автоматически проставляем возможность диммирования лампы
+                    lamp_.dimmable = True if data_dict[lamp_.pin].get("level") is not None else False
+                    if lamp_.dimmable:
+                        lamp_.level = data_dict[lamp_.pin]["level"]
+                else:
+                    lamp_.on = None
+
+                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
+                lamp_.save()
+
             for sensor in self.sensor_set.all():
                 sensor.value = data_dict[sensor.pin]["value"] if sensor.pin in data_dict else None
                 sensor.time = timezone.now()
                 sensor.save()
                 sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type)
+
             self.last_answer_time = timezone.now()
             self.save()
+
+            return True
+
+        else:
+            return False
+
+
+    def refresh_all(self):
+        """ Сбор данных с ардуинок
+        """
+        return self.make_request('status')
+
 
     class Meta:
         ordering = ('name',)
@@ -72,6 +100,8 @@ class Lamp(models.Model):
     name = models.CharField(max_length=255)
     on = models.NullBooleanField(default=None)
     pin = models.IntegerField(default=None, null=True)
+    dimmable = models.BooleanField(default=False)
+    level = models.IntegerField(default=0)
 
     def __str__(self):
         return "%s (%s): %s" % (self.name, self.node, self.on)
