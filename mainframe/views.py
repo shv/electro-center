@@ -146,9 +146,7 @@ def switch_all_by_lamps(request, status):
 def check(request):
     """Запрос ардуинки на внеочередную проверку
     """
-    ip = '127.0.0.1'
-    port = '8000'
-    host = '%s:%s' % (ip, port)
+    host = '192.168.1.222'
     logger.info("Check host: %s" % host)
     nodes = Node.objects.filter(host=host).all()
     if nodes:
