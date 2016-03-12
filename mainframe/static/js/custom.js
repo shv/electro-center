@@ -1,21 +1,86 @@
 $(function() {
     var need_request = true;
+    var lampSwitchers = {};
+
+    /* Объект запроса на сервер */
+    function Request(){
+        this.updateAll = function(data) {
+            for (var i=0;i<data.length;i++) {
+                if (data[i].object_type == 'lamp') {
+                    var lamp = data[i],
+                        switcher = lampSwitchers[lamp.id];
+                    if (switcher) {
+                        switcher.switchByStatus(lamp.on);
+                        if (lamp.dimmable) {
+                            switcher.setValue(lamp.level);
+                        }
+                    }
+                };
+                if (data[i].object_type == 'sensor') {
+                    var sensor = data[i];
+                    $('#sensor-'+sensor.id).find('div.panel-body p').html(sensor.name+": "+sensor.value);
+                }
+            }
+        }
+        this.get = function(url, func) {
+            $.get(url, func);
+        }
+        this.process = function(url) {
+            $.get(url, this.updateAll);
+        }
+    }
+
+    /* Объект выключателя ламп */
     function LampSwitcher(id){
         this.id = id;
         this.switcher = $("#lamp-" + this.id + " input[data-toggle=toggle]");
+        this.slider = $("#lamp-" + this.id + " .dimmer");
+        this.value = 0;
+
+        this.changeSwitcherStatus = function (){
+            var state = $(this).prop('checked'),
+                url = $(this).attr('data-'+(state?'url-on':'url-off')),
+                request = new Request();
+
+            request.process(url);
+        }
+        this.switcher.on('change', this.changeSwitcherStatus);
+
+        /* Slider */
+        this.changeSliderValue = function(slideEvt) {
+            var obj = $(this),
+                url = obj.attr('data-url') + slideEvt.value.newValue,
+                request = new Request();
+
+            request.process(url);
+        }
+        this.slider.slider({
+            formatter: function(value) {
+                return value + '%';
+            }
+        });
+        this.slider.on('change', this.changeSliderValue);
+        /* End Slider */
+
         this.switchOn = function (){
             if (!this.switcher.length) return;
+            this.switcher.off( "change" );
             this.switcher.bootstrapToggle('on');
+            this.switcher.on('change', this.changeSwitcherStatus);
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-danger').addClass('panel-primary');
         };
         this.switchOff = function(){
             if (!this.switcher.length) return;
+            this.switcher.off( "change" );
             this.switcher.bootstrapToggle('off');
+            this.switcher.on('change', this.changeSwitcherStatus);
             $('#lamp-'+this.id).find('.panel').removeClass('panel-primary').removeClass('panel-danger').addClass('panel-default');
         };
         this.switchError = function(){
             if (!this.switcher.length) return;
+            this.switcher.off( "change" );
             this.switcher.bootstrapToggle('off');
+            this.switcher.on('change', this.changeSwitcherStatus);
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-primary').addClass('panel-danger');
         };
         this.switchByStatus = function(status){
@@ -28,88 +93,31 @@ $(function() {
                 this.switchError();
             }
         };
-    }
-
-    function LampSlider(id){
-        this.id = id;
-        this.slider = $("#lamp-" + this.id + " .dimmer");
-        this.value = 0;
         this.setValue = function (value){
             this.value = value;
-            // Set value
+            this.slider.slider('setValue', value);
         };
     }
 
+
+    /* Инициализация переключателей ламп */
+    $("div[id^='lamp-']").each(function(index, obj){
+        var id = obj.id.split('-')[1];
+        lampSwitchers[id] = new LampSwitcher(id);
+    });
+
+    /* Переключалка всей зоны */
     $(".zone-switcher").click(function(){
         var url = $(this).attr('data-url');
-        need_request = false;
-        $.get(url, function( data ) {
-            for (var i=0;i<data.length;i++) {
-                var lamp = data[i],
-                    switcher = new LampSwitcher(lamp.id);
-
-                switcher.switchByStatus(lamp.on);
-            }
-            need_request = true;
-        })
+        var request = new Request();
+        request.process(url);
     });
-
-    $("input[data-toggle=toggle]").change(function(event){
-        var obj = this,
-            state = $(obj).prop('checked'),
-            url = $(obj).attr('data-'+(state?'url-on':'url-off'));
-
-        if (need_request) {
-            need_request = false;
-            $.get(url, function( data ) {
-                for (var i=0;i<data.length;i++) {
-                    var lamp = data[i],
-                        switcher = new LampSwitcher(lamp.id);
-
-                    switcher.switchByStatus(lamp.on);
-                }
-                need_request = true;
-            })
-        }
-    });
-
-    /* Slider */
-    $(".dimmer").slider({
-        formatter: function(value) {
-            return value + '%';
-        }
-    });
-    $(".dimmer").on("change", function(slideEvt) {
-        var obj = $(this),
-            url = obj.attr('data-url') + slideEvt.value.newValue;
-        $.get(url, function( data ) {
-            console.log(data);
-        });
-    });
-    /* End Slider */
 
     /* Autoupdate */
     var autoUpdate = function(obj){
-        var url = obj.attr('data-url');
-
-        if (need_request) {
-            need_request = false;
-            $.get(url, function( data ) {
-                for (var i=0;i<data.length;i++) {
-                    if (data[i].object_type == 'lamp') {
-                        var lamp = data[i],
-                            switcher = new LampSwitcher(lamp.id);
-
-                        switcher.switchByStatus(lamp.on);
-                    };
-                    if (data[i].object_type == 'sensor') {
-                        var sensor = data[i];
-                        $('#sensor-'+sensor.id).find('div.panel-body p').html(sensor.name+": "+sensor.value);
-                    }
-                }
-                need_request = true;
-            })
-        }
+        var url = obj.attr('data-url'),
+            request = new Request();
+        request.process(url);
     };
 
     $(".autoupdate").each(function(obj){

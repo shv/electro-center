@@ -87,7 +87,13 @@ def switch(request, lamp_id, status):
         logger.info("%s: %s" % (lamp.pin, lamp.on))
         lamp.save()
 
-    return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
+    result = []
+    lamp = Lamp.objects.get(id=lamp_id)
+    l = model_to_dict(lamp, fields=[], exclude=[])
+    l['object_type'] = 'lamp'
+    result.append(l)
+
+    return result
 
 
 @json_view
@@ -113,33 +119,43 @@ def switch_zone_by_lamps(request, zone_id, status):
         node = lamp.node
         logger.info("Node: %s" % node)
         action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
-        result = node.make_request(action)
-        if result is False:
+        res = node.make_request(action)
+        if res is False:
             lamp.on = None
             lamp.save()
 
-    return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in zone.lamps.all()]
+    result = []
+    for lamp in zone.lamps.all():
+        l = model_to_dict(lamp, fields=[], exclude=[])
+        l['object_type'] = 'lamp'
+        result.append(l)
+
+    return result
 
 
 
 @json_view
 def switch_all_by_lamps(request, status):
     lamps = []
+    result = []
     for node in Node.objects.all():
         for lamp in node.lamp_set.all():
             node = lamp.node
             logger.info("Node: %s" % node)
             action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
-            result = node.make_request(action)
-            if result is None:
+            res = node.make_request(action)
+            if res is None:
                 break
-            elif result is False:
+            elif res is False:
                 lamp.on = None
                 lamp.save()
 
-        lamps.extend([model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()])
+        for lamp in node.lamp_set.all():
+            l = model_to_dict(lamp, fields=[], exclude=[])
+            l['object_type'] = 'lamp'
+            result.append(l)
 
-    return lamps
+    return result
 
 
 @json_view
