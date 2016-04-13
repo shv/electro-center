@@ -181,14 +181,17 @@ def get_sensor_data_for_morris(request, sensor_id):
     report = qs.filter(time__gte=timezone.now() - timedelta(hours=24), time__lt=timezone.now()).values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
 
     result = []
-    for item in report:
-        result.append({
-            'time': item['hour'].strftime("%Y-%m-%d %H:00:00%z"),
-            'avg': int(item['value__avg']),
-            'min': int(item['value__min']),
-            'max': int(item['value__max']),
-            'count': int(item['id__count'])
-        });
+    try:
+        for item in report:
+            result.append({
+                'time': item['hour'].strftime("%Y-%m-%d %H:00:00%z"),
+                'avg': int(item['value__avg']),
+                'min': int(item['value__min']),
+                'max': int(item['value__max']),
+                'count': int(item['id__count'])
+            });
+    except TypeError: # Скрываем пустые результаты
+        return []
 
     return result
 

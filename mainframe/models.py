@@ -51,16 +51,20 @@ class Node(models.Model):
             data = json.loads(response.read())
             conn.close()
             logger.info(data)
-            data_dict = {d["pin"]:d for d in data}
+            data_dict = {}
+            for d in data:
+                if d["pin"] not in data_dict:
+                    data_dict[d["pin"]] = {}
+                data_dict[d["pin"]][d.get("sid", None)] = d
             logger.info(data_dict)
             for lamp_ in self.lamp_set.all():
                 if lamp_.pin in data_dict:
-                    lamp_.on = data_dict[lamp_.pin]["on"]
-                    lamp_.level = data_dict[lamp_.pin].get("level", 0) if lamp_.pin in data_dict else 0
+                    lamp_.on = data_dict[lamp_.pin][None]["on"]
+                    lamp_.level = data_dict[lamp_.pin][None].get("level", 0) if lamp_.pin in data_dict else 0
                     # Автоматически проставляем возможность диммирования лампы
-                    lamp_.dimmable = True if data_dict[lamp_.pin].get("level") is not None else False
+                    lamp_.dimmable = True if data_dict[lamp_.pin][None].get("level") is not None else False
                     if lamp_.dimmable:
-                        lamp_.level = data_dict[lamp_.pin]["level"]
+                        lamp_.level = data_dict[lamp_.pin][None]["level"]
                 else:
                     lamp_.on = None
 
@@ -68,10 +72,11 @@ class Node(models.Model):
                 lamp_.save()
 
             for sensor in self.sensor_set.all():
-                sensor.value = data_dict[sensor.pin]["value"] if sensor.pin in data_dict else None
+                sid = sensor.sid
+                sensor.value = data_dict[sensor.pin][sid]["value"] if sensor.pin in data_dict and sid in data_dict[sensor.pin] else None
                 sensor.time = timezone.now()
                 sensor.save()
-                sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type)
+                sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type, sid=sensor.sid)
 
             self.last_answer_time = timezone.now()
             self.save()
@@ -133,16 +138,24 @@ class Sensor (models.Model):
     node = models.ForeignKey(Node, on_delete=models.CASCADE)
     type = models.ForeignKey(SensorType, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
-    value = models.IntegerField(default=None, null=True)
+    value = models.FloatField(default=None, null=True, blank=True)
     pin = models.IntegerField(default=None, null=True)
+    sid = models.CharField(max_length=255, default=None, null=True, blank=True) # Sensor id
     time = models.DateTimeField('Last value time')
 
     def __str__(self):
         return "%s (%s) on %s: %s [%s]" % (self.name, self.type, self.node, self.value, self.time)
 
+    def save(self, *args, **kwargs):
+        if not self.sid:
+            self.sid = None
+        if not self.value:
+            self.value = None
+        super(Sensor, self).save(*args, **kwargs)
+
     class Meta:
         ordering = ('name',)
-        unique_together = ('node', 'pin',)
+        unique_together = ('node', 'pin', 'sid')
 
 
 @python_2_unicode_compatible  # only if you need to support Python 2
@@ -150,14 +163,22 @@ class SensorHistory (models.Model):
     """История значений сенсоров
     """
     sensor = models.ForeignKey(Sensor, on_delete=models.CASCADE)
-    value = models.IntegerField(default=None, null=True)
+    value = models.FloatField(default=None, null=True, blank=True)
     node = models.ForeignKey(Node, on_delete=models.SET_NULL, default=None, null=True)
     pin = models.IntegerField(default=None, null=True)
+    sid = models.CharField(max_length=255, default=None, null=True, blank=True)
     time = models.DateTimeField('Value at time')
     type = models.ForeignKey(SensorType, on_delete=models.SET_NULL, default=None, null=True)
 
     def __str__(self):
         return "[%s]: %s on %s [%s]" % (self.time, self.value, self.node, self.pin)
+
+    def save(self, *args, **kwargs):
+        if not self.sid:
+            self.sid = None
+        if not self.value:
+            self.value = None
+        super(SensorHistory, self).save(*args, **kwargs)
 
     class Meta:
         ordering = ('time', 'node')

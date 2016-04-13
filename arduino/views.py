@@ -21,8 +21,12 @@ def status(request):
             item['level'] = pin.level
         result.append(item)
 
-    rand = random.randint(300,800)
+    rand = round(random.random() * (800-300) + 300, 1)
     result.append({"value": rand, "pin": 16})
+    rand = round(random.random() * (32-7) + 7, 1)
+    result.append({"value": rand, "pin": 10, "sid": "28749423h4ih"})
+    rand = round(random.random() * (32-7) + 7, 1)
+    result.append({"value": rand, "pin": 10, "sid": "28749423h4i2"})
     return result
 
 
@@ -47,7 +51,7 @@ def switch(request):
             item['level'] = pin.level
         result.append(item)
 
-    rand = random.randint(300,800)
+    rand = round(random.random() * (800-300) + 300, 1)
     result.append({"value": rand, "pin": 16})
     
     return result
@@ -76,7 +80,7 @@ def dim(request):
             item['level'] = pin.level
         result.append(item)
 
-    rand = random.randint(300,800)
+    rand = round(random.random() * (800-300) + 300, 1)
     result.append({"value": rand, "pin": 16})
     
     return result
