@@ -13,7 +13,7 @@ urlpatterns = [
     url(r'^switch_all/(?P<status>on|off)$', views.switch_all_by_lamps, name='switch_all'),
     url(r'^get_sensor_data_for_morris/(?P<sensor_id>[0-9]+)$', views.get_sensor_data_for_morris, name='get_sensor_data_for_morris'),
     url(r'^inventory_status$', views.inventory_status, name='inventory_status'),
-    url(r'^login/$', login),
-    url(r'^logout/$', logout),
+    url(r'^login/$', login, name='login'),
+    url(r'^logout/$', logout, name='logout'),
     url(r'^check$', views.check, name='check'),
 ]

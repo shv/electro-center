@@ -189,8 +189,8 @@ class Zone(models.Model):
     """Зоны расположения ламп
     """
     name = models.CharField(max_length=255)
-    lamps = models.ManyToManyField(Lamp)
-    sensors = models.ManyToManyField(Sensor)
+    lamps = models.ManyToManyField(Lamp, blank=True)
+    sensors = models.ManyToManyField(Sensor, blank=True)
 
     def __str__(self):
         return "%s" % self.name

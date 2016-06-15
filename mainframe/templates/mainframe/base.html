@@ -271,9 +271,9 @@
                         <li class="divider"></li>
                         <li>
                             {% if user.is_anonymous %}
-                                <a href="{% url 'django.contrib.auth.views.login' %}"><i class="fa fa-sign-out fa-fw"></i> login</a>
+                                <a href="{% url 'login' %}"><i class="fa fa-sign-out fa-fw"></i> login</a>
                             {% else %}
-                                <a href="{% url 'django.contrib.auth.views.logout' %}"><i class="fa fa-sign-out fa-fw"></i> logout ({{ user }})</a>
+                                <a href="{% url 'logout' %}"><i class="fa fa-sign-out fa-fw"></i> logout ({{ user }})</a>
                             {% endif %}
                         </li>
                     </ul>
