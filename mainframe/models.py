@@ -7,6 +7,7 @@ import datetime
 import httplib, urllib
 import json
 import logging
+import uuid
 
 
 from django.contrib.auth.models import User
@@ -25,14 +26,21 @@ class Node(models.Model):
     """Arduins
     """
     name = models.CharField(max_length=255)
-    host = models.CharField(max_length=255)
-    last_answer_time = models.DateTimeField('last answer time')
+    host = models.CharField(max_length=255, blank=True, null=True) # Если NULL то пассивный режим
+    last_answer_time = models.DateTimeField('last answer time', blank=True, null=True)
+    # Владелец ноды, который ее создал, может редактировать и удалять, а так же менять состав
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
+    token = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, blank=True)
 
     def __str__(self):
-        return "%s (%s)" % (self.name, self.host)
+        return "[%s] %s (%s)" % (self.owner if self.owner is not None else '!no', self.name, self.host)
 
 
     def make_request(self, action, lamp=None):
+        if self.host is None or not self.host:
+            # Если нода недоступна для опроса, то даже не пытаемся
+            return False
+
         try:
             conn = httplib.HTTPConnection(self.host, timeout=REQUEST_TIMEOUT)
             conn.connect()
@@ -50,41 +58,48 @@ class Node(models.Model):
         if response.status == 200:
             data = json.loads(response.read())
             conn.close()
-            logger.info(data)
-            data_dict = {}
-            for d in data:
-                if d["pin"] not in data_dict:
-                    data_dict[d["pin"]] = {}
-                data_dict[d["pin"]][d.get("sid", None)] = d
-            logger.info(data_dict)
-            for lamp_ in self.lamp_set.all():
-                if lamp_.pin in data_dict:
-                    lamp_.on = data_dict[lamp_.pin][None]["on"]
-                    lamp_.level = data_dict[lamp_.pin][None].get("level", 0) if lamp_.pin in data_dict else 0
-                    # Автоматически проставляем возможность диммирования лампы
-                    lamp_.dimmable = True if data_dict[lamp_.pin][None].get("level") is not None else False
-                    if lamp_.dimmable:
-                        lamp_.level = data_dict[lamp_.pin][None]["level"]
-                else:
-                    lamp_.on = None
-
-                logger.info("%s: %s" % (lamp_.pin, lamp_.on))
-                lamp_.save()
-
-            for sensor in self.sensor_set.all():
-                sid = sensor.sid
-                sensor.value = data_dict[sensor.pin][sid]["value"] if sensor.pin in data_dict and sid in data_dict[sensor.pin] else None
-                sensor.time = timezone.now()
-                sensor.save()
-                sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type, sid=sensor.sid)
-
-            self.last_answer_time = timezone.now()
-            self.save()
-
-            return True
+            return self.apply_data(data)
 
         else:
             return False
+
+
+    def apply_data(self, data, lazy=False):
+        ''' lazy - not set None to not present lamps
+        '''
+        logger.info(data)
+        data_dict = {}
+        for d in data:
+            if d["pin"] not in data_dict:
+                data_dict[d["pin"]] = {}
+            data_dict[d["pin"]][d.get("sid", None)] = d
+        logger.info(data_dict)
+        for lamp_ in self.lamp_set.all():
+            if lamp_.pin in data_dict:
+                lamp_.on = data_dict[lamp_.pin][None]["on"]
+                lamp_.level = data_dict[lamp_.pin][None].get("level", 0) if lamp_.pin in data_dict else 0
+                # Автоматически проставляем возможность диммирования лампы
+                lamp_.dimmable = True if data_dict[lamp_.pin][None].get("level") is not None else False
+                if lamp_.dimmable:
+                    lamp_.level = data_dict[lamp_.pin][None]["level"]
+            elif not lazy:
+                lamp_.on = None
+
+            logger.info("%s: %s" % (lamp_.pin, lamp_.on))
+            lamp_.save()
+
+        for sensor in self.sensor_set.all():
+            sid = sensor.sid
+            sensor.value = data_dict[sensor.pin][sid]["value"] if sensor.pin in data_dict and sid in data_dict[sensor.pin] else None
+            sensor.time = timezone.now()
+            sensor.save()
+            sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type, sid=sensor.sid)
+
+        self.last_answer_time = timezone.now()
+        self.save()
+
+        return True
+
 
 
     def refresh_all(self):
@@ -121,13 +136,16 @@ class SensorType (models.Model):
     """Типы датчиков
        (датчики света, температуры, влажности...)
     """
-    name = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    # Владелец типа сенсора, который ее создал, может редактировать и удалять, а так же менять состав
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
-        return "%s" % (self.name)
+        return "[%s] %s" % (self.owner if self.owner is not None else '!no', self.name)
 
     class Meta:
         ordering = ('name',)
+        unique_together = ('name', 'owner',)
 
 
 @python_2_unicode_compatible  # only if you need to support Python 2
@@ -141,7 +159,7 @@ class Sensor (models.Model):
     value = models.FloatField(default=None, null=True, blank=True)
     pin = models.IntegerField(default=None, null=True)
     sid = models.CharField(max_length=255, default=None, null=True, blank=True) # Sensor id
-    time = models.DateTimeField('Last value time')
+    time = models.DateTimeField('Last value time', blank=True, null=True)
 
     def __str__(self):
         return "%s (%s) on %s: %s [%s]" % (self.name, self.type, self.node, self.value, self.time)
@@ -167,11 +185,11 @@ class SensorHistory (models.Model):
     node = models.ForeignKey(Node, on_delete=models.SET_NULL, default=None, null=True)
     pin = models.IntegerField(default=None, null=True)
     sid = models.CharField(max_length=255, default=None, null=True, blank=True)
-    time = models.DateTimeField('Value at time')
+    time = models.DateTimeField('Value at time', blank=True, null=True)
     type = models.ForeignKey(SensorType, on_delete=models.SET_NULL, default=None, null=True)
 
     def __str__(self):
-        return "[%s]: %s on %s [%s]" % (self.time, self.value, self.node, self.pin)
+        return "[%s]: %s on %s [%s]" % (self.time, self.value, self.sensor, self.pin)
 
     def save(self, *args, **kwargs):
         if not self.sid:
@@ -191,9 +209,11 @@ class Zone(models.Model):
     name = models.CharField(max_length=255)
     lamps = models.ManyToManyField(Lamp, blank=True)
     sensors = models.ManyToManyField(Sensor, blank=True)
+    # Владелец зоны, который ее создал, может редактировать и удалять, а так же менять состав
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
-        return "%s" % self.name
+        return "[%s] %s" % (self.owner if self.owner is not None else '!no', self.name)
 
     def nodes(self):
         nodes = {}
@@ -204,8 +224,6 @@ class Zone(models.Model):
 
     class Meta:
         ordering = ('name',)
-
-    # owner = models.ForeignKey(User)
 
     # def __str__(self):
 

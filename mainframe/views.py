@@ -19,13 +19,23 @@ from .models import Node, Lamp, Zone, Sensor
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
 
+""" Нода может работать в двух режимах:
+        Активный (не заполняем хост ноды)
+            Нода сама коннектится к сервера
+            Нода интересуется у сервера что поменять
+            Нода отправляет всю нужную инфу
+        Пассивный (нужно указать хост ноды)
+            Нода ничего никуда не шлет, а только слушает
+            Сервак при каждом изменении пинает ноду
+            Сервак сам решает как часто интересоваться статусом ноды
+"""
 
 def render(f):
     def tmp(request, *args, **kwargs):
         context = f(request, *args, **kwargs)
         context.update(dict(
-            zones = Zone.objects.all(),
-            nodes = Node.objects.all()
+            zones = Zone.objects.filter(owner=request.user).all(),
+            nodes = Node.objects.filter(owner=request.user).all()
         ))
         template = loader.get_template(context['template'])
         return HttpResponse(template.render(context, request))
@@ -37,15 +47,16 @@ def render(f):
 def index(request):
     return dict(
         template = 'mainframe/index.html',
-        sensors = Sensor.objects.all()
+        sensors = Sensor.objects.filter(node__owner=request.user).all()
     )
 
 
 @render
 def zone(request, zone_id):
-    zone = Zone.objects.get(id=zone_id)
+    zone = Zone.objects.get(id=zone_id, owner=request.user)
     for node in zone.nodes():
-        node.refresh_all()
+        if node.host:
+            node.refresh_all()
 
     return dict(
         template = 'mainframe/zone.html',
@@ -55,8 +66,9 @@ def zone(request, zone_id):
 
 @render
 def node(request, node_id):
-    node = Node.objects.get(id=node_id)
-    node.refresh_all()
+    node = Node.objects.get(id=node_id, owner=request.user)
+    if node.host:
+        node.refresh_all()
     return dict(
         template = 'mainframe/node.html',
         active_menu = 'nodes',
@@ -66,8 +78,9 @@ def node(request, node_id):
 
 @json_view
 def lamps(request, node_id):
-    node = Node.objects.get(id=node_id)
-    node.refresh_all()
+    node = Node.objects.get(id=node_id, owner=request.user)
+    if node.host:
+        node.refresh_all()
 
     return [model_to_dict(lamp, fields=[], exclude=[]) for lamp in node.lamp_set.all()]
 
@@ -76,16 +89,21 @@ def lamps(request, node_id):
 def switch(request, lamp_id, status):
     """По одной лампе в формате запроса: ?9=true
     """
-    lamp = Lamp.objects.get(id=lamp_id)
+    lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
     node = lamp.node
     logger.info("Node: %s" % node)
-    action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
-    result = node.make_request(action)
+    if node.host:
+        action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+        result = node.make_request(action)
 
-    if not result:
-        lamp.on = None
-        logger.info("%s: %s" % (lamp.pin, lamp.on))
+        if not result:
+            lamp.on = None
+            logger.info("%s: %s" % (lamp.pin, lamp.on))
+            lamp.save()
+    else:
+        lamp.on = True if status == 'on' else False
         lamp.save()
+
 
     result = []
     lamp = Lamp.objects.get(id=lamp_id)
@@ -101,11 +119,15 @@ def dim(request, lamp_id, value):
     """По одной лампе в формате запроса: ?9=50
     """
     if int(value) <= 100 and int(value) >= 0:
-        lamp = Lamp.objects.get(id=lamp_id)
+        lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
         node = lamp.node
         logger.info("Node: %s" % node)
-        action = "dim?%s=%s" % (lamp.pin, value)
-        result = node.make_request(action)
+        if node.host:
+            action = "dim?%s=%s" % (lamp.pin, value)
+            result = node.make_request(action)
+        else:
+            lamp.level = value
+            lamp.save()
 
     return [model_to_dict(Lamp.objects.get(id=lamp_id), fields=[], exclude=[])]
 
@@ -114,14 +136,18 @@ def dim(request, lamp_id, value):
 def switch_zone_by_lamps(request, zone_id, status):
     """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
     """
-    zone = Zone.objects.get(id=zone_id)
+    zone = Zone.objects.get(id=zone_id, owner=request.user)
     for lamp in zone.lamps.all():
         node = lamp.node
         logger.info("Node: %s" % node)
-        action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
-        res = node.make_request(action)
-        if res is False:
-            lamp.on = None
+        if node.host:
+            action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+            res = node.make_request(action)
+            if res is False:
+                lamp.on = None
+                lamp.save()
+        else:
+            lamp.on = True if status == 'on' else False
             lamp.save()
 
     result = []
@@ -138,16 +164,20 @@ def switch_zone_by_lamps(request, zone_id, status):
 def switch_all_by_lamps(request, status):
     lamps = []
     result = []
-    for node in Node.objects.all():
+    for node in Node.objects.filter(owner=request.user).all():
         for lamp in node.lamp_set.all():
             node = lamp.node
             logger.info("Node: %s" % node)
-            action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
-            res = node.make_request(action)
-            if res is None:
-                break
-            elif res is False:
-                lamp.on = None
+            if node.host:
+                action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+                res = node.make_request(action)
+                if res is None:
+                    break
+                elif res is False:
+                    lamp.on = None
+                    lamp.save()
+            else:
+                lamp.on = True if status == 'on' else False
                 lamp.save()
 
         for lamp in node.lamp_set.all():
@@ -160,11 +190,11 @@ def switch_all_by_lamps(request, status):
 
 @json_view
 def check(request):
-    """Запрос ардуинки на внеочередную проверку
+    """Запрос ардуинки на внеочередную проверку - нужно избавиться
     """
     host = '192.168.1.222'
     logger.info("Check host: %s" % host)
-    nodes = Node.objects.filter(host=host).all()
+    nodes = Node.objects.filter(host=host, owner=request.user).all()
     if nodes:
         node = nodes[0]
         logger.info("Check node: %s" % node)
@@ -173,9 +203,53 @@ def check(request):
     return {}
 
 
+
+def communicate(request, token):
+    """Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
+       Статус возвращает состояние сенсоров
+       Порядок: ардуинка отправляет статус изменений, центр его применяет и отправляет статус ламп
+       TODO получать в запросе состояние ардуинки
+       TODO авторизация запроса по токену (добавление юзеру в базу токена)
+       data=1!2333232:1,2:0,3:0
+       data=pin!sid:on:level:value,pin!sid:on:level:value
+    """
+    node = Node.objects.get(token=token)
+
+    device_string = request.GET.get('data')
+    logger.info("Request: %s" % device_string)
+    device_list = []
+    devices = device_string.split(',') if device_string else []
+    for device in devices:
+        values = device.split(':')
+        if len(values) > 1:
+            ids = values[0].split('!')
+            logger.info("Values: %s, pin/sid: %s" % (len(values), ids))
+            device_dict = {}
+            device_dict['pin'] = int(ids[0])
+            if len(ids) > 1:
+                device_dict['sid'] = ids[1]
+            else:
+                device_dict['sid'] = None
+            device_dict['on'] = values[1] if values[1] != '' else None
+            if len(values) > 2 and values[2] != '':
+                device_dict['level'] = float(values[2])
+            if len(values) > 3 and values[3] != '':
+                device_dict['value'] = float(values[3])
+            device_list.append(device_dict)
+
+    logger.info("Devices: %s" % device_list)
+    lamps = []
+    node.apply_data(device_list, lazy=True)
+    for lamp in node.lamp_set.all():
+        on = {True: 1, False: 0}.get(lamp.on, '')
+        lamps.append("{:d}:{}:{}".format(lamp.pin, on, lamp.level if lamp.dimmable else ''))
+
+    return HttpResponse(','.join(lamps))
+
+
 @json_view
 def get_sensor_data_for_morris(request, sensor_id):
-    sensor = Sensor.objects.get(id=sensor_id)
+    sensor = Sensor.objects.get(id=sensor_id, node__owner=request.user)
     truncate_date = connection.ops.date_trunc_sql('hour', 'time')
     qs = sensor.sensorhistory_set.extra({'hour':truncate_date})
     report = qs.filter(time__gte=timezone.now() - timedelta(hours=24), time__lt=timezone.now()).values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
@@ -183,6 +257,8 @@ def get_sensor_data_for_morris(request, sensor_id):
     result = []
     try:
         for item in report:
+            logger.info("Item: %s" % item)
+
             result.append({
                 'time': item['hour'].strftime("%Y-%m-%d %H:00:00%z"),
                 'avg': int(item['value__avg']),
@@ -205,14 +281,14 @@ def inventory_status(request):
         logger.debug("group: %s" % group[0])
         if group[0] == 'lamp_id':
             for lamp_id in group[1]:
-                lamp = Lamp.objects.get(id=lamp_id)
+                lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
                 l = model_to_dict(lamp, fields=[], exclude=[])
                 l['object_type'] = 'lamp'
                 result.append(l)
 
         if group[0] == 'sensor_id':
             for sensor_id in group[1]:
-                sensor = Sensor.objects.get(id=sensor_id)
+                sensor = Sensor.objects.get(id=sensor_id, node__owner=request.user)
                 l = model_to_dict(sensor, fields=[], exclude=[])
                 l['object_type'] = 'sensor'
                 result.append(l)
