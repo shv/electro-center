@@ -33,10 +33,12 @@ REQUEST_TIMEOUT = 1
 def render(f):
     def tmp(request, *args, **kwargs):
         context = f(request, *args, **kwargs)
+        request_user = request.user if request.user.is_authenticated() else None
         context.update(dict(
-            zones = Zone.objects.filter(owner=request.user).all(),
-            nodes = Node.objects.filter(owner=request.user).all()
+            zones = Zone.objects.filter(owner=request_user).all(),
+            nodes = Node.objects.filter(owner=request_user).all()
         ))
+
         template = loader.get_template(context['template'])
         return HttpResponse(template.render(context, request))
 
@@ -45,15 +47,18 @@ def render(f):
 
 @render
 def index(request):
+    request_user = request.user if request.user.is_authenticated() else None
+    sensors = Sensor.objects.filter(node__owner=request_user).all()
     return dict(
         template = 'mainframe/index.html',
-        sensors = Sensor.objects.filter(node__owner=request.user).all()
+        sensors = sensors
     )
 
 
 @render
 def zone(request, zone_id):
-    zone = Zone.objects.get(id=zone_id, owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    zone = Zone.objects.get(id=zone_id, owner=request_user)
     for node in zone.nodes():
         if node.host:
             node.refresh_all()
@@ -66,7 +71,8 @@ def zone(request, zone_id):
 
 @render
 def node(request, node_id):
-    node = Node.objects.get(id=node_id, owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    node = Node.objects.get(id=node_id, owner=request_user)
     if node.host:
         node.refresh_all()
     return dict(
@@ -78,7 +84,8 @@ def node(request, node_id):
 
 @json_view
 def lamps(request, node_id):
-    node = Node.objects.get(id=node_id, owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    node = Node.objects.get(id=node_id, owner=request_user)
     if node.host:
         node.refresh_all()
 
@@ -89,7 +96,8 @@ def lamps(request, node_id):
 def switch(request, lamp_id, status):
     """По одной лампе в формате запроса: ?9=true
     """
-    lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    lamp = Lamp.objects.get(id=lamp_id, node__owner=request_user)
     node = lamp.node
     logger.info("Node: %s" % node)
     if node.host:
@@ -118,8 +126,9 @@ def switch(request, lamp_id, status):
 def dim(request, lamp_id, value):
     """По одной лампе в формате запроса: ?9=50
     """
+    request_user = request.user if request.user.is_authenticated() else None
     if int(value) <= 100 and int(value) >= 0:
-        lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
+        lamp = Lamp.objects.get(id=lamp_id, node__owner=request_user)
         node = lamp.node
         logger.info("Node: %s" % node)
         if node.host:
@@ -136,7 +145,8 @@ def dim(request, lamp_id, value):
 def switch_zone_by_lamps(request, zone_id, status):
     """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
     """
-    zone = Zone.objects.get(id=zone_id, owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    zone = Zone.objects.get(id=zone_id, owner=request_user)
     for lamp in zone.lamps.all():
         node = lamp.node
         logger.info("Node: %s" % node)
@@ -162,9 +172,10 @@ def switch_zone_by_lamps(request, zone_id, status):
 
 @json_view
 def switch_all_by_lamps(request, status):
+    request_user = request.user if request.user.is_authenticated() else None
     lamps = []
     result = []
-    for node in Node.objects.filter(owner=request.user).all():
+    for node in Node.objects.filter(owner=request_user).all():
         for lamp in node.lamp_set.all():
             node = lamp.node
             logger.info("Node: %s" % node)
@@ -190,11 +201,12 @@ def switch_all_by_lamps(request, status):
 
 @json_view
 def check(request):
-    """Запрос ардуинки на внеочередную проверку - нужно избавиться
+    """depricated Запрос ардуинки на внеочередную проверку - нужно избавиться
     """
+    request_user = request.user if request.user.is_authenticated() else None
     host = '192.168.1.222'
     logger.info("Check host: %s" % host)
-    nodes = Node.objects.filter(host=host, owner=request.user).all()
+    nodes = Node.objects.filter(host=host, owner=request_user).all()
     if nodes:
         node = nodes[0]
         logger.info("Check node: %s" % node)
@@ -249,7 +261,8 @@ def communicate(request, token):
 
 @json_view
 def get_sensor_data_for_morris(request, sensor_id):
-    sensor = Sensor.objects.get(id=sensor_id, node__owner=request.user)
+    request_user = request.user if request.user.is_authenticated() else None
+    sensor = Sensor.objects.get(id=sensor_id, node__owner=request_user)
     truncate_date = connection.ops.date_trunc_sql('hour', 'time')
     qs = sensor.sensorhistory_set.extra({'hour':truncate_date})
     report = qs.filter(time__gte=timezone.now() - timedelta(hours=24), time__lt=timezone.now()).values('hour').annotate(Avg('value'), Min('value'), Max('value'), Count('id')).order_by('hour')
@@ -274,6 +287,7 @@ def get_sensor_data_for_morris(request, sensor_id):
 
 @json_view
 def inventory_status(request):
+    request_user = request.user if request.user.is_authenticated() else None
     req = request.GET.lists()
     logger.debug("req: %s" % req)
     result = []
@@ -281,14 +295,14 @@ def inventory_status(request):
         logger.debug("group: %s" % group[0])
         if group[0] == 'lamp_id':
             for lamp_id in group[1]:
-                lamp = Lamp.objects.get(id=lamp_id, node__owner=request.user)
+                lamp = Lamp.objects.get(id=lamp_id, node__owner=request_user)
                 l = model_to_dict(lamp, fields=[], exclude=[])
                 l['object_type'] = 'lamp'
                 result.append(l)
 
         if group[0] == 'sensor_id':
             for sensor_id in group[1]:
-                sensor = Sensor.objects.get(id=sensor_id, node__owner=request.user)
+                sensor = Sensor.objects.get(id=sensor_id, node__owner=request_user)
                 l = model_to_dict(sensor, fields=[], exclude=[])
                 l['object_type'] = 'sensor'
                 result.append(l)
