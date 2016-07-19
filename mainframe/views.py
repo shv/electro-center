@@ -242,7 +242,7 @@ def communicate(request, token):
                 device_dict['sid'] = ids[1]
             else:
                 device_dict['sid'] = None
-            device_dict['on'] = values[1] if values[1] != '' else None
+            device_dict['on'] = values[1] != u'0' if values[1] != '' else None
             if len(values) > 2 and values[2] != '':
                 device_dict['level'] = float(values[2])
             if len(values) > 3 and values[3] != '':
