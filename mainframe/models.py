@@ -88,10 +88,24 @@ class Node(models.Model):
             logger.info("%s: %s" % (lamp_.pin, lamp_.on))
             lamp_.save()
 
+        # Значения сенсоров нужно применять не чаще чем раз в 5 секунд
         for sensor in self.sensor_set.all():
+            time_now = timezone.now()
+            # Период обновления должен зависеть от того, облако это или нет
+            # Есть смысл вообще сравнивать с предыдущим значением
+            if sensor.sensorhistory_set.filter(time__gt=time_now-timezone.timedelta(seconds=5)):
+                logger.debug("Skip...")
+                continue
+
+            logger.debug("Update...")
             sid = sensor.sid
-            sensor.value = data_dict[sensor.pin][sid]["value"] if sensor.pin in data_dict and sid in data_dict[sensor.pin] else None
-            sensor.time = timezone.now()
+
+            # Нет смысла писать в сенсор инфу, если она просто не пришла
+            if not (sensor.pin in data_dict and sid in data_dict[sensor.pin]):
+                continue
+
+            sensor.value = data_dict[sensor.pin][sid]["value"]
+            sensor.time = time_now
             sensor.save()
             sensor.sensorhistory_set.create(value=sensor.value, node=sensor.node, pin=sensor.pin, time=sensor.time, type=sensor.type, sid=sensor.sid)
 
