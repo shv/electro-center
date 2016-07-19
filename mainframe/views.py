@@ -274,9 +274,9 @@ def get_sensor_data_for_morris(request, sensor_id):
 
             result.append({
                 'time': item['hour'].strftime("%Y-%m-%d %H:00:00%z"),
-                'avg': int(item['value__avg']),
-                'min': int(item['value__min']),
-                'max': int(item['value__max']),
+                'avg': "{:.1f}".format(item['value__avg']),
+                'min': "{:.1f}".format(item['value__min']),
+                'max': "{:.1f}".format(item['value__max']),
                 'count': int(item['id__count'])
             });
     except TypeError: # Скрываем пустые результаты
