@@ -18,7 +18,7 @@ $(function() {
                 };
                 if (data[i].object_type == 'sensor') {
                     var sensor = data[i];
-                    $('#sensor-'+sensor.id).find('div.panel-body p').html(sensor.name+": "+sensor.value);
+                    $('#sensor-'+sensor.id).find('div.panel-body .sensor-value').html(sensor.value);
                 }
             }
         }
@@ -125,13 +125,14 @@ $(function() {
         setInterval(function(){autoUpdate(obj)}, 1000);
     });
     /* End Autoupdate */
-
+    var charts = {};
     $(".morris-area-chart").each(function(index){
         var obj = $(this),
             url = obj.attr('data-url');
         $.get(url, function( data ) {
-            Morris.Area({
+            charts[obj.attr('id')] = Morris.Area({
                 element: obj.attr('id'),
+                yLabelFormat: function (y) { return Math.round(y*100)/100; },
                 data: data,
                 xkey: 'time',
                 ykeys: ['max', 'avg', 'min'],
@@ -147,5 +148,16 @@ $(function() {
             });
         });
     });
+    var updateMorris = function(){
+        $(".morris-area-chart").each(function(index){
+            var obj = $(this),
+                url = obj.attr('data-url');
+            $.get(url, function( data ) {
+                charts[obj.attr('id')].setData(data);
+                charts[obj.attr('id')].redraw();
+            });
+        });
+    }
+    setInterval(updateMorris, 5000);
 
 });

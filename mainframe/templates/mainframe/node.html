@@ -43,7 +43,7 @@
                 </div>
                 <div class="panel-body">
                     <p style="text-align: center">
-                        <p  title="{{ sensor_.time }}">{{ sensor_.name }}: <strong>{{ sensor_.value }}</strong></p>
+                        <p>{{ sensor_.name }}: <strong class="sensor-value">{{ sensor_.value }}</strong></p>
                     </p>
                 </div>
             </div>
@@ -79,4 +79,5 @@
         Послений ответ был: {{ node.last_answer_time }}
     </div>
     <hr>
+    <div class="autoupdate" data-url="{% url 'inventory_status' %}?{% for lamp_ in node.lamp_set.all %}lamp_id={{ lamp_.id }}{% if not forloop.last %}&{% endif %}{% endfor %}&{% for sensor_ in node.sensor_set.all %}sensor_id={{ sensor_.id }}{% if not forloop.last %}&{% endif %}{% endfor %}"></div>
 {% endblock content %}
