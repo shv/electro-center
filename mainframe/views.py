@@ -45,6 +45,19 @@ def render(f):
     return tmp
 
 
+def render_string(f):
+    def tmp(request, *args, **kwargs):
+        context = f(request, *args, **kwargs)
+        logger.debug(context)
+        lamps = []
+        for pin in context:
+            lamps.append("{:d}:{}:{}:{}".format(pin['pin'], pin.get('on', ''), pin.get('level', ''), pin.get('value', '')))
+
+        return HttpResponse(','.join(lamps))
+
+    return tmp
+
+
 @render
 def index(request):
     request_user = request.user if request.user.is_authenticated() else None
@@ -215,19 +228,9 @@ def check(request):
     return {}
 
 
-
-def communicate(request, token):
-    """Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
-       Статус возвращает состояние сенсоров
-       Порядок: ардуинка отправляет статус изменений, центр его применяет и отправляет статус ламп
-       TODO получать в запросе состояние ардуинки
-       TODO авторизация запроса по токену (добавление юзеру в базу токена)
-       data=1!2333232:1,2:0,3:0
-       data=pin!sid:on:level:value,pin!sid:on:level:value
+def parse_device_string(device_string):
+    """Парсер строки GET запроса
     """
-    node = Node.objects.get(token=token)
-
-    device_string = request.GET.get('data')
     logger.info("Request: %s" % device_string)
     device_list = []
     devices = device_string.split(',') if device_string else []
@@ -250,13 +253,70 @@ def communicate(request, token):
             device_list.append(device_dict)
 
     logger.info("Devices: %s" % device_list)
-    lamps = []
+    return device_list
+
+
+@render_string
+def communicate(request, token):
+    """Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
+       Статус возвращает состояние сенсоров
+       Порядок: ардуинка отправляет статус изменений, центр его применяет и отправляет статус ламп
+       TODO получать в запросе состояние ардуинки
+       data=1!2333232:1,2:0,3:0
+       data=pin!sid:on:level:value,pin!sid:on:level:value
+    """
+    node = Node.objects.get(token=token)
+
+    device_list = parse_device_string(request.GET.get('data'))
     node.apply_data(device_list, lazy=True)
+
+    lamps = []
     for lamp in node.lamp_set.all():
         on = {True: 1, False: 0}.get(lamp.on, '')
-        lamps.append("{:d}:{}:{}".format(lamp.pin, on, lamp.level if lamp.dimmable else ''))
+        lamps.append({
+            'pin': lamp.pin,
+            'on': on,
+            'level': lamp.level if lamp.dimmable else ''
+            })
 
-    return HttpResponse(','.join(lamps))
+    return lamps
+
+
+@render_string
+def post(request, token):
+    """Запрос от ардуинки, присылает любую инфу
+       Порядок: ардуинка отправляет статус изменений, центр его применяет
+       Система применяет изменения только запрошенных пинов, остальные не трогаются
+       data=1!2333232:1,2:0,3:0
+       data=pin!sid:on:level:value,pin!sid:on:level:value
+    """
+    node = Node.objects.get(token=token)
+
+    device_list = parse_device_string(request.GET.get('data'))
+    node.apply_data(device_list, lazy=True)
+
+    return []
+
+@render_string
+def get(request, token):
+    """Запрос от ардуинки, запрашивает информацию состояний, в которые ей нужно выставить исполнительные устройства
+       Не получает информацию о датчиках, если они ей не нужны
+       Порядок: ардуинка отправляет статус изменений, центр его применяет
+       data=1!2333232:1,2:0,3:0
+       data=pin!sid:on:level:value,pin!sid:on:level:value
+    """
+    node = Node.objects.get(token=token)
+
+    lamps = []
+    for lamp in node.lamp_set.all():
+        on = {True: 1, False: 0}.get(lamp.on, '')
+        lamps.append({
+            'pin': lamp.pin,
+            'on': on,
+            'level': lamp.level if lamp.dimmable else ''
+            })
+
+    return lamps
 
 
 @json_view

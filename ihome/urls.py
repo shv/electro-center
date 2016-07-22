@@ -16,7 +16,7 @@ Including another URLconf
 from django.conf.urls import include, url
 from django.contrib import admin
 from arduino.views import switch, status, dim
-from mainframe.views import communicate
+from mainframe.views import communicate, get, post
 
 
 urlpatterns = [
@@ -27,4 +27,6 @@ urlpatterns = [
     url(r'^dim', dim),
     url(r'^status', status),
     url(r'^api/v0.1/communicate/(?P<token>[a-z0-9\-]+)$', communicate, name='communicate'),
+    url(r'^api/v0.1/post/(?P<token>[a-z0-9\-]+)$', post, name='post'),
+    url(r'^api/v0.1/get/(?P<token>[a-z0-9\-]+)$', get, name='get'),
 ]
