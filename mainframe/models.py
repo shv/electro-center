@@ -206,9 +206,9 @@ class SensorHistory (models.Model):
         return "[%s]: %s on %s [%s]" % (self.time, self.value, self.sensor, self.pin)
 
     def save(self, *args, **kwargs):
-        if not self.sid:
+        if self.sid == u'':
             self.sid = None
-        if not self.value:
+        if self.value == u'':
             self.value = None
         super(SensorHistory, self).save(*args, **kwargs)
 
