@@ -179,9 +179,9 @@ class Sensor (models.Model):
         return "%s (%s) on %s: %s [%s]" % (self.name, self.type, self.node, self.value, self.time)
 
     def save(self, *args, **kwargs):
-        if not self.sid:
+        if self.sid == u'':
             self.sid = None
-        if not self.value:
+        if self.value == u'':
             self.value = None
         super(Sensor, self).save(*args, **kwargs)
 

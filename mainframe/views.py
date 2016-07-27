@@ -245,11 +245,11 @@ def parse_device_string(device_string):
                 device_dict['sid'] = ids[1]
             else:
                 device_dict['sid'] = None
-            device_dict['on'] = values[1] != u'0' if values[1] != '' else None
+            device_dict['on'] = values[1] != u'0' if values[1] != u'' else None
             if len(values) > 2 and values[2] != '':
-                device_dict['level'] = float(values[2])
-            if len(values) > 3 and values[3] != '':
-                device_dict['value'] = float(values[3])
+                device_dict['level'] = None if values[2] == u'' else float(values[2])
+            if len(values) > 3:
+                device_dict['value'] = None if values[3] == u'' else float(values[3])
             device_list.append(device_dict)
 
     logger.info("Devices: %s" % device_list)
