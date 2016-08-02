@@ -158,8 +158,8 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
 
     def on_close(self):
         try:
-            pass
-            # self.client.unsubscribe(self.channel)
+            for node_id in self.channels:
+               self.client.unsubscribe(self.channels[node_id])
         except AttributeError:
             pass
         def check():
