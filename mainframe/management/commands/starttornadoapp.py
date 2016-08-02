@@ -6,6 +6,8 @@ import tornado.httpserver
 import tornado.ioloop
 
 from django.core.management.base import BaseCommand, CommandError
+from django.conf import settings
+
 
 from mainframe.tornadoapp import application
 
@@ -31,10 +33,10 @@ class Command(BaseCommand):
             except ValueError:
                 raise CommandError('Invalid port number specified')
         else:
-            port = 9090
+            port = settings.WS_PORT
 
         self.http_server = tornado.httpserver.HTTPServer(application)
-        self.http_server.listen(port, address="127.0.0.1")
+        self.http_server.listen(port, address=settings.WS_ADRESS)
 
         # Init signals handler
         signal.signal(signal.SIGTERM, self.sig_handler)

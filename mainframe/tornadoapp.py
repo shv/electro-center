@@ -6,7 +6,7 @@ import urllib
 
 # pip install git+https://github.com/evilkost/brukva.git
 import brukva
-import tornado.web
+import tornado.web #pip install tornado
 import tornado.websocket
 import tornado.ioloop
 import tornado.httpclient

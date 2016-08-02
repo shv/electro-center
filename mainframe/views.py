@@ -4,6 +4,7 @@
 import logging
 import httplib, urllib
 import json
+import redis #pip install redis
 
 from django.forms.models import model_to_dict
 from django.db.models import Sum, Count, Avg, Min, Max
@@ -271,6 +272,7 @@ def communicate(request, token):
     node.apply_data(device_list, lazy=True)
 
     lamps = []
+    result = []
     for lamp in node.lamp_set.all():
         on = {True: 1, False: 0}.get(lamp.on, '')
         lamps.append({
@@ -278,6 +280,34 @@ def communicate(request, token):
             'on': on,
             'level': lamp.level if lamp.dimmable else ''
             })
+        result.append({
+            'node': node.id,
+            'pin': lamp.pin,
+            'on': lamp.on,
+            'object_type': 'lamp',
+            'id': lamp.id,
+            'level': lamp.level if lamp.dimmable else ''
+            })
+
+    r = redis.StrictRedis()
+
+    channel = 'node_%d_messages' % node.id
+    for sensor in node.sensor_set.all():
+        result.append({
+            'node': node.id,
+            'pin': sensor.pin,
+            'object_type': 'sensor',
+            'id': sensor.id,
+            'value': sensor.value
+            })
+
+
+    r.publish(channel, json.dumps({
+        "env": "ecc",
+        "user_id": node.owner_id,
+        "node_id": node.id,
+        "data": json.dumps(result),
+    }))
 
     return lamps
 
