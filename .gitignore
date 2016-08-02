@@ -1,2 +1,3 @@
 *.pyc
 sources/
+ihome/local_settings.py

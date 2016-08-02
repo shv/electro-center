@@ -1,6 +1,7 @@
 $(function() {
     var need_request = true;
     var lampSwitchers = {};
+    var socket;
 
     /* Объект запроса на сервер */
     function Request(){
@@ -22,11 +23,13 @@ $(function() {
                 }
             }
         }
-        this.get = function(url, func) {
-            $.get(url, func);
-        }
-        this.process = function(url) {
-            $.get(url, this.updateAll);
+        this.process = function(data) {
+            try {
+                socket.send(JSON.stringify(data));
+            } catch (err) {
+                socket.close();
+                return;
+            }
         }
     }
 
@@ -38,21 +41,19 @@ $(function() {
         this.value = 0;
 
         this.changeSwitcherStatus = function (){
-            var state = $(this).prop('checked'),
-                url = $(this).attr('data-'+(state?'url-on':'url-off')),
+            var data = {"id": id, "object_type": "lamp", "status": $(this).prop('checked')?"on":"off"},
                 request = new Request();
 
-            request.process(url);
+            request.process(data);
         }
         this.switcher.on('change', this.changeSwitcherStatus);
 
         /* Slider */
         this.changeSliderValue = function(slideEvt) {
-            var obj = $(this),
-                url = obj.attr('data-url') + slideEvt.value.newValue,
+            var data = {"id": id, "object_type": "lamp", "level": slideEvt.value.newValue},
                 request = new Request();
 
-            request.process(url);
+            request.process(data);
         }
         this.slider.slider({
             formatter: function(value) {
@@ -84,6 +85,7 @@ $(function() {
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-primary').addClass('panel-danger');
         };
         this.switchByStatus = function(status){
+            console.log(status);
             if (!this.switcher.length) return;
             if (status === true) {
                 this.switchOn();
@@ -102,28 +104,27 @@ $(function() {
 
     /* Инициализация переключателей ламп */
     $("div[id^='lamp-']").each(function(index, obj){
-        var id = obj.id.split('-')[1];
+        var id = obj.id.split('-')[1]*1;
         lampSwitchers[id] = new LampSwitcher(id);
     });
 
     /* Переключалка всей зоны */
-    $(".zone-switcher").click(function(){
-        var url = $(this).attr('data-url');
-        var request = new Request();
-        request.process(url);
-    });
-
-    /* Autoupdate */
-    var autoUpdate = function(obj){
-        var url = obj.attr('data-url'),
+    $(".zone-lamps-switcher").click(function(){
+        var id = $(this).attr('data-zone-id'),
+            status = $(this).attr('data-status'),
+            data = {"id": id, "object_type": "zone_lamps", "status": status},
             request = new Request();
-        request.process(url);
-    };
-
-    $(".autoupdate").each(function(obj){
-        var obj = $(this);
-        setInterval(function(){autoUpdate(obj)}, 1000);
+        request.process(data);
     });
+
+    /* Переключалка всей зоны */
+    $(".all-lamps-switcher").click(function(){
+        var status = $(this).attr('data-status'),
+            data = {"object_type": "all_lamps", "status": status},
+            request = new Request();
+        request.process(data);
+    });
+
     /* End Autoupdate */
     var charts = {};
     $(".morris-area-chart").each(function(index){
@@ -160,4 +161,41 @@ $(function() {
     }
     setInterval(updateMorris, 5000);
 
+    /*Socket*/
+    if (!("WebSocket" in window)) {
+        alert("Your browser does not support web sockets");
+    }else{
+        setup();
+    }
+
+    function setup(){
+
+        var host = "ws://localhost:9090/ws";
+        socket = new WebSocket(host);
+
+        // event handlers for websocket
+        if(socket){
+
+            socket.onopen = function(){
+            }
+
+            socket.onmessage = function(msg){
+                var request = new Request();
+                showServerResponse(msg.data);
+                request.updateAll(JSON.parse(msg.data))
+            }
+
+            socket.onclose = function(){
+                showServerResponse("The connection has been closed.");
+                setTimeout(function(){setup()}, 5000);
+            }
+
+        }else{
+            showServerResponse("invalid socket");
+        }
+
+        function showServerResponse(txt){
+            console.log(txt);
+        }
+    };
 });

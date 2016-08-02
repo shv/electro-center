@@ -8,8 +8,8 @@
 {% block content %}
     <div class="row">
         <div class="col-lg-4" style="text-align: center">
-            <button type="button" data-url="{% url 'switch_all' 'off' %}" class="btn btn-default zone-switcher">Выключить все</button>
-            <button type="button" data-url="{% url 'switch_all' 'on' %}" class="btn btn-primary zone-switcher">Включить все</button>
+            <button type="button" data-status="off" class="btn btn-default all-lamps-switcher">Выключить все</button>
+            <button type="button" data-status="on" class="btn btn-primary all-lamps-switcher">Включить все</button>
         </div>
     </div>
     <hr>

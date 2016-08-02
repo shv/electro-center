@@ -19,12 +19,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.9/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'oav-an#)j3m%n1ca87k3m2ulz_wrmo^h2$-xy!!hvam7y))(&t'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
 ALLOWED_HOSTS = []
 
 
@@ -73,24 +67,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ihome.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/1.9/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3')
-    }
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.postgresql',
-    #     'NAME': 'ihome',
-    #     'USER': 'shv',
-    #     'PASSWORD': '',
-    #     'HOST': ''
-    # }
-}
-
-
 # Password validation
 # https://docs.djangoproject.com/en/1.9/ref/settings/#auth-password-validators
 
@@ -133,37 +109,7 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format' : "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s",
-            'datefmt' : "%d/%b/%Y %H:%M:%S"
-        },
-    },
-    'handlers': {
-        'all':{
-            'level': 'DEBUG',
-            'formatter': 'verbose',
-            'class': 'logging.StreamHandler'
-        },
-    },
-    'loggers': {
-        'django':{
-            'handlers': ['all'],
-            'level': 'ERROR',
-            'propagate': True,
-        },
-        'mainframe': {
-            'handlers': ['all'],
-            'level': 'ERROR',
-            'propagate': True,
-        },
-        'arduino': {
-            'handlers': ['all'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-    }
-}
+try:
+    from local_settings import *
+except ImportError:
+    pass
