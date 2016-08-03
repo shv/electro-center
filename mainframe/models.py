@@ -141,7 +141,7 @@ class Lamp(models.Model):
         return "%s (%s): %s" % (self.name, self.node, self.on)
 
     class Meta:
-        ordering = ('name',)
+        ordering = ('id',)
         unique_together = ('node', 'pin',)
 
 
@@ -199,7 +199,7 @@ class SensorHistory (models.Model):
     node = models.ForeignKey(Node, on_delete=models.SET_NULL, default=None, null=True)
     pin = models.IntegerField(default=None, null=True)
     sid = models.CharField(max_length=255, default=None, null=True, blank=True)
-    time = models.DateTimeField('Value at time', blank=True, null=True)
+    time = models.DateTimeField('Value at time', db_index=True, blank=True, null=True)
     type = models.ForeignKey(SensorType, on_delete=models.SET_NULL, default=None, null=True)
 
     def __str__(self):
@@ -213,7 +213,8 @@ class SensorHistory (models.Model):
         super(SensorHistory, self).save(*args, **kwargs)
 
     class Meta:
-        ordering = ('time', 'node')
+        index_together = ["sensor", "time"]
+        ordering = ('time',)
 
 
 @python_2_unicode_compatible  # only if you need to support Python 2

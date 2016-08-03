@@ -159,7 +159,7 @@ $(function() {
             });
         });
     }
-    setInterval(updateMorris, 5000);
+    setInterval(updateMorris, 10000);
 
     /*Socket*/
     if (!("WebSocket" in window)) {
