@@ -41,7 +41,7 @@ $(function() {
         this.value = 0;
 
         this.changeSwitcherStatus = function (){
-            var data = {"id": id, "object_type": "lamp", "status": $(this).prop('checked')?"on":"off"},
+            var data = {"id": id, "object_type": "lamp", "on": $(this).prop('checked')},
                 request = new Request();
 
             request.process(data);
@@ -112,7 +112,7 @@ $(function() {
     $(".zone-lamps-switcher").click(function(){
         var id = $(this).attr('data-zone-id'),
             status = $(this).attr('data-status'),
-            data = {"id": id, "object_type": "zone_lamps", "status": status},
+            data = {"id": id, "object_type": "zone_lamps", "on": status=="true"},
             request = new Request();
         request.process(data);
     });
@@ -120,7 +120,7 @@ $(function() {
     /* Переключалка всей зоны */
     $(".all-lamps-switcher").click(function(){
         var status = $(this).attr('data-status'),
-            data = {"object_type": "all_lamps", "status": status},
+            data = {"object_type": "all_lamps", "on": status=="true"},
             request = new Request();
         request.process(data);
     });

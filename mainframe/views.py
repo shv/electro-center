@@ -7,6 +7,7 @@ import json
 import redis #pip install redis
 
 from django.forms.models import model_to_dict
+from django.conf import settings
 from django.db.models import Sum, Count, Avg, Min, Max
 from django.http import HttpResponse
 from django.db import connection
@@ -14,8 +15,10 @@ from django.template import loader
 from django.utils import timezone
 from datetime import timedelta
 from jsonview.decorators import json_view #https://pypi.python.org/pypi/django-jsonview
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Node, Lamp, Zone, Sensor
+from mainframe.utils import parse_device_string, generate_device_string
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
@@ -50,11 +53,8 @@ def render_string(f):
     def tmp(request, *args, **kwargs):
         context = f(request, *args, **kwargs)
         logger.debug(context)
-        lamps = []
-        for pin in context:
-            lamps.append("{:d}:{}:{}:{}".format(pin['pin'], pin.get('on', ''), pin.get('level', ''), pin.get('value', '')))
-
-        return HttpResponse(','.join(lamps))
+        result = generate_device_string(context)
+        return HttpResponse(result)
 
     return tmp
 
@@ -115,7 +115,7 @@ def switch(request, lamp_id, status):
     node = lamp.node
     logger.info("Node: %s" % node)
     if node.host:
-        action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+        action = "switch?%s=%s" % (lamp.pin, str(status))
         result = node.make_request(action)
 
         if not result:
@@ -123,7 +123,7 @@ def switch(request, lamp_id, status):
             logger.info("%s: %s" % (lamp.pin, lamp.on))
             lamp.save()
     else:
-        lamp.on = True if status == 'on' else False
+        lamp.on = status
         lamp.save()
 
 
@@ -165,13 +165,13 @@ def switch_zone_by_lamps(request, zone_id, status):
         node = lamp.node
         logger.info("Node: %s" % node)
         if node.host:
-            action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+            action = "switch?%s=%s" % (lamp.pin, 'true' if status else 'false')
             res = node.make_request(action)
             if res is False:
                 lamp.on = None
                 lamp.save()
         else:
-            lamp.on = True if status == 'on' else False
+            lamp.on = status
             lamp.save()
 
     result = []
@@ -194,7 +194,7 @@ def switch_all_by_lamps(request, status):
             node = lamp.node
             logger.info("Node: %s" % node)
             if node.host:
-                action = "switch?%s=%s" % (lamp.pin, 'true' if status == 'on' else 'false')
+                action = "switch?%s=%s" % (lamp.pin, 'true' if status else 'false')
                 res = node.make_request(action)
                 if res is None:
                     break
@@ -202,7 +202,7 @@ def switch_all_by_lamps(request, status):
                     lamp.on = None
                     lamp.save()
             else:
-                lamp.on = True if status == 'on' else False
+                lamp.on = status
                 lamp.save()
 
         for lamp in node.lamp_set.all():
@@ -229,34 +229,6 @@ def check(request):
     return {}
 
 
-def parse_device_string(device_string):
-    """Парсер строки GET запроса
-    """
-    logger.info("Request: %s" % device_string)
-    device_list = []
-    devices = device_string.split(',') if device_string else []
-    for device in devices:
-        values = device.split(':')
-        if len(values) > 1:
-            ids = values[0].split('!')
-            logger.info("Values: %s, pin/sid: %s" % (len(values), ids))
-            device_dict = {}
-            device_dict['pin'] = int(ids[0])
-            if len(ids) > 1:
-                device_dict['sid'] = ids[1]
-            else:
-                device_dict['sid'] = None
-            device_dict['on'] = values[1] != u'0' if values[1] != u'' else None
-            if len(values) > 2 and values[2] != '':
-                device_dict['level'] = None if values[2] == u'' else float(values[2])
-            if len(values) > 3:
-                device_dict['value'] = None if values[3] == u'' else float(values[3])
-            device_list.append(device_dict)
-
-    logger.info("Devices: %s" % device_list)
-    return device_list
-
-
 @render_string
 def communicate(request, token):
     """Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
@@ -274,10 +246,9 @@ def communicate(request, token):
     lamps = []
     result = []
     for lamp in node.lamp_set.all():
-        on = {True: 1, False: 0}.get(lamp.on, '')
         lamps.append({
             'pin': lamp.pin,
-            'on': on,
+            'on': lamp.on,
             'level': lamp.level if lamp.dimmable else ''
             })
         result.append({
@@ -397,5 +368,45 @@ def inventory_status(request):
                 l['object_type'] = 'sensor'
                 result.append(l)
 
+
+    return result
+
+
+@csrf_exempt
+@json_view
+def internal_sync(request, token):
+    """Внутренний запрос на асинхронное изменения
+    """
+    api_key = request.POST.get("api_key")
+    if api_key != settings.API_KEY:
+        return {"error": "Please pass a correct API key."}
+
+    node = Node.objects.get(token=token)
+
+    device_list = json.loads(request.POST.get('data'))
+    logger.debug("!!!!")
+    logger.debug(device_list)
+    node.apply_data(device_list, lazy=True)
+
+    lamps = []
+    result = []
+    for lamp in node.lamp_set.all():
+        result.append({
+            'node': node.id,
+            'pin': lamp.pin,
+            'on': lamp.on,
+            'object_type': 'lamp',
+            'id': lamp.id,
+            'level': lamp.level if lamp.dimmable else ''
+            })
+
+    for sensor in node.sensor_set.all():
+        result.append({
+            'node': node.id,
+            'pin': sensor.pin,
+            'object_type': 'sensor',
+            'id': sensor.id,
+            'value': sensor.value
+            })
 
     return result

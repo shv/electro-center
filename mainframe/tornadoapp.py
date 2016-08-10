@@ -15,7 +15,6 @@ import tornado.template
 
 from django.conf import settings
 
-from django.forms.models import model_to_dict
 from django.utils.module_loading import import_module
 session_engine = import_module(settings.SESSION_ENGINE)
 
@@ -23,6 +22,7 @@ from django.contrib.auth.models import User
 
 from mainframe.models import Node, Lamp, Zone
 from mainframe.views import parse_device_string
+from mainframe.utils import switch, switch_zone_by_lamps, switch_all_by_lamps, parse_device_string, generate_device_string
 
 c = brukva.Client()
 c.connect()
@@ -70,14 +70,17 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
         data = json.loads(message)
         object_type = data.get("object_type")
         _id = data.get("id")
-        status = data.get("status")
+        status = data.get("on")
         level = data.get("level")
+
+        # Применяем асинхронно изменения
+
         if object_type == "lamp":
-            result = self.switch(_id, status, level)
+            result = switch(self.user, _id, status, level)
         elif object_type == "zone_lamps":
-            result = self.switch_zone_by_lamps(_id, status)
+            result = switch_zone_by_lamps(self.user, _id, status)
         elif object_type == "all_lamps":
-            result = self.switch_all_by_lamps(status)
+            result = switch_all_by_lamps(self.user, status)
 
         # Тут нужно передавать id сокет, чтобы распазнать кому что отправлять
         for node_id in result.keys():
@@ -85,76 +88,13 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
                 "env": "ecc",
                 "user_id": self.user.id,
                 "node_id": node_id,
-                "data": json.dumps(result[node_id]),
+                "data": result[node_id],
             }))
-
-
-    def switch(self, lamp_id, status, level):
-        """По одной лампе в формате запроса: ?9=true
-        """
-        lamp = Lamp.objects.get(id=lamp_id, node__owner=self.user)
-        node = lamp.node
-        if level is not None and int(level) <= 100 and int(level) >= 0:
-            lamp.level = level
-
-        if status is not None:
-            lamp.on = True if status == 'on' else False
-
-        lamp.save()
-
-        result = {node.id: []}
-        lamp = Lamp.objects.get(id=lamp_id)
-        l = model_to_dict(lamp, fields=[], exclude=[])
-        l['object_type'] = 'lamp'
-        result[node.id].append(l)
-
-        return result
-
-
-    def switch_zone_by_lamps(self, zone_id, status):
-        """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
-           TODO отпралять в разные очереди редиса
-        """
-
-        zone = Zone.objects.get(id=zone_id, owner=self.user)
-        for lamp in zone.lamps.all():
-            node = lamp.node
-            lamp.on = True if status == 'on' else False
-            lamp.save()
-
-        result = {}
-        for lamp in zone.lamps.all():
-            l = model_to_dict(lamp, fields=[], exclude=[])
-            l['object_type'] = 'lamp'
-            if lamp.node_id not in result:
-                result[lamp.node_id] = []
-            result[lamp.node_id].append(l)
-
-        return result
-
-
-    def switch_all_by_lamps(self, status):
-        result = {}
-        for node in Node.objects.filter(owner=self.user).all():
-            for lamp in node.lamp_set.all():
-                node = lamp.node
-                lamp.on = True if status == 'on' else False
-                lamp.save()
-
-            for lamp in node.lamp_set.all():
-                l = model_to_dict(lamp, fields=[], exclude=[])
-                l['object_type'] = 'lamp'
-                if lamp.node_id not in result:
-                    result[lamp.node_id] = []
-                result[lamp.node_id].append(l)
-
-        return result
-
 
     def show_new_message(self, result):
         body = json.loads(result.body)
         data = body["data"]
-        self.write_message(str(data))
+        self.write_message(json.dumps(data))
 
     def on_close(self):
         try:
@@ -188,10 +128,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             node = Node.objects.get(token=token)
             if node:
                 self.node = node
-                print 'connection {} opened...'.format(self.node.token)
-                self.write_message("The server says: 'Hello'. Connection {} was accepted.".format(self.node.token))
         except:
-            print 'Wrong token, connection closed...'
             self.close()
             return
         self.channel = 'node_%d_messages' % self.node.id
@@ -199,19 +136,46 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         self.client.listen(self.show_new_message)
 
     def show_new_message(self, result):
-        self.write_message(str(result.body))
+        # Реакция на сообщение в редисе
+        data = json.loads(result.body)
+        if not (data["env"] == "node" and data["node_id"] == self.node.id):
+            # Свои сообщения игнорируем
+            self.write_message(str(generate_device_string(data["data"])))
+
+    def check_origin(self, origin):
+        return True
+
+    def handle_request(self, response):
+        # попробуем дожидаться ответа от базы и только после этого отправлять сообщение в вебморду
+        result = json.loads(response.body)
+        c.publish(self.channel, json.dumps({
+            "env": "node",
+            "node_id": self.node.id,
+            "data": result,
+        }))
+
 
     def on_message(self, message):
-        print "Message %s" % message
+        if not message:
+            return
+        if len(message) > 10000:
+            return
         data = parse_device_string(message)
-        self.node.apply_data(data, lazy=True)
-
-        self.write_message("The server says: " + message + " back at. " + "Results")
-
-        c.publish(self.channel, json.dumps({
-            "sender": self.node.id,
-            "text": message,
-        }))
+        # API внесения изменения в базу
+        # Так как тут мы не знаем id ламп и сенсоров, то сообщения в вебморды пойдут после ответа от базы
+        http_client = tornado.httpclient.AsyncHTTPClient()
+        request = tornado.httpclient.HTTPRequest(
+            "".join([
+                        settings.API_SYNC_URL,
+                        str(self.node.token),
+                    ]),
+            method="POST",
+            body=urllib.urlencode({
+                "api_key": settings.API_KEY,
+                "data": json.dumps(data),
+            })
+        )
+        http_client.fetch(request, self.handle_request)
 
         # Сообщение отправляется во все другие сокеты
         # Нужно сделать выборку по ноде и юзеру и отправлять только в нужные каналы
@@ -236,7 +200,6 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             datetime.timedelta(0.00001),
             check
         )
-        print 'connection closed...'
 
 class Application(tornado.web.Application):
     def __init__(self):
@@ -247,7 +210,6 @@ class Application(tornado.web.Application):
         )
 
         tornado.web.Application.__init__(self, handlers, debug=settings.DEBUG)
-
 
 
 application = Application()

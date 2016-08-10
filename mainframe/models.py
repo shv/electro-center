@@ -90,6 +90,11 @@ class Node(models.Model):
 
         # Значения сенсоров нужно применять не чаще чем раз в 5 секунд
         for sensor in self.sensor_set.all():
+            # Нет смысла писать в сенсор инфу, если она просто не пришла
+            sid = sensor.sid
+            if not (sensor.pin in data_dict and sid in data_dict[sensor.pin]):
+                continue
+
             time_now = timezone.now()
             # Период обновления должен зависеть от того, облако это или нет
             # Есть смысл вообще сравнивать с предыдущим значением
@@ -98,11 +103,7 @@ class Node(models.Model):
                 continue
 
             logger.debug("Update...")
-            sid = sensor.sid
 
-            # Нет смысла писать в сенсор инфу, если она просто не пришла
-            if not (sensor.pin in data_dict and sid in data_dict[sensor.pin]):
-                continue
 
             sensor.value = data_dict[sensor.pin][sid]["value"]
             sensor.time = time_now
