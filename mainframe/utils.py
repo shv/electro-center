@@ -11,8 +11,6 @@ def switch(user, lamp_id, status, level):
     if level is not None and int(level) <= 100 and int(level) >= 0:
         lamp.level = level
 
-    print "!!!!!"
-    print status
     if status is not None:
         lamp.on = status
 
