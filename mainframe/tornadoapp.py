@@ -74,6 +74,19 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
         level = data.get("level")
 
         # Применяем асинхронно изменения
+        http_client = tornado.httpclient.AsyncHTTPClient()
+        request = tornado.httpclient.HTTPRequest(
+            "".join([
+                        settings.API_SYNC_URL,
+                        str(self.node.token),
+                    ]),
+            method="POST",
+            body=urllib.urlencode({
+                "api_key": settings.API_KEY,
+                "data": json.dumps(data),
+            })
+        )
+        http_client.fetch(request, self.handle_request)
 
         if object_type == "lamp":
             result = switch(self.user, _id, status, level)
@@ -134,6 +147,8 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         self.channel = 'node_%d_messages' % self.node.id
         self.client.subscribe(self.channel)
         self.client.listen(self.show_new_message)
+        # Тут нужно синхронизировать данные, например отправлять ноде,
+        #   либо наоборот при коннекте получать от ноды
 
     def show_new_message(self, result):
         # Реакция на сообщение в редисе

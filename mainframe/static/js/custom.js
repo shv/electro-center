@@ -2,6 +2,7 @@ $(function() {
     var need_request = true;
     var lampSwitchers = {};
     var socket;
+    var log = function(msg){};
 
     /* Объект запроса на сервер */
     function Request(){
@@ -13,6 +14,7 @@ $(function() {
                     if (switcher) {
                         switcher.switchByStatus(lamp.on);
                         if (lamp.dimmable) {
+                            // TODO Выставляем значение при отпускании ползунка, либо если ползунок не схвачен
                             switcher.setValue(lamp.level);
                         }
                     }
@@ -97,6 +99,7 @@ $(function() {
         };
         this.setValue = function (value){
             this.value = value;
+            console.log(this.slider);
             this.slider.slider('setValue', value);
         };
     }
@@ -170,8 +173,8 @@ $(function() {
 
     function setup(){
 
-        var host = "ws://localhost:9090/ws";
-        socket = new WebSocket(host);
+        var host = global_settings.socket_url;
+        socket = new ReconnectingWebSocket(host);
 
         // event handlers for websocket
         if(socket){
@@ -185,17 +188,27 @@ $(function() {
                 request.updateAll(JSON.parse(msg.data))
             }
 
-            socket.onclose = function(){
-                showServerResponse("The connection has been closed.");
-                setTimeout(function(){setup()}, 5000);
+            socket.onclose = function(event){
+              if (event.wasClean) {
+                showServerResponse("The connection has been closed clean.");
+              } else {
+                showServerResponse('Обрыв соединения');
+              }
+              showServerResponse('Код: ' + event.code + ' причина: ' + event.reason);
+              showServerResponse(event);
+              //setTimeout(function(){setup()}, 5000);
             }
-
         }else{
             showServerResponse("invalid socket");
         }
 
         function showServerResponse(txt){
-            console.log(txt);
+            log(txt);
         }
     };
+    if (global_settings.debug) {
+        log = function(msg){
+            console.log(msg);
+        }
+    }
 });

@@ -45,6 +45,12 @@
         <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
         <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
     <![endif]-->
+    <script>
+      var global_settings = {
+        socket_url: "{{ settings.SOCKET_URL_FOR_ECC }}",
+        debug: {{ settings.DEBUG|lower }},
+      };
+    </script>
 </head>
 
 <body>
@@ -374,6 +380,9 @@
 
     <!-- http://seiyria.com/bootstrap-slider/ (variants: http://www.internet-technologies.ru/articles/article_2436.html) -->
     <script src="{% static "js/bootstrap-slider.min.js" %}"></script>
+
+    <!-- https://github.com/joewalnes/reconnecting-websocket -->
+    <script src="{% static "js/reconnecting-websocket.js" %}"></script>
 
     <!-- Custom App JavaScript -->
     <script src="{% static "js/custom.js" %}"></script>

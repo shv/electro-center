@@ -89,8 +89,6 @@ def parse_device_string(device_string):
 
 def generate_device_string(data_list):
     result = []
-    print "!!!"
-    print data_list
     for pin in data_list:
         result.append("{:d}:{}:{}:{}".format(pin['pin'], {True: '1', False: '0'}.get(pin.get('on'), ''), pin.get('level', ''), pin.get('value', '')))
 

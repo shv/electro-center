@@ -40,7 +40,8 @@ def render(f):
         request_user = request.user if request.user.is_authenticated() else None
         context.update(dict(
             zones = Zone.objects.filter(owner=request_user).all(),
-            nodes = Node.objects.filter(owner=request_user).all()
+            nodes = Node.objects.filter(owner=request_user).all(),
+            settings = settings,
         ))
 
         template = loader.get_template(context['template'])
@@ -61,6 +62,8 @@ def render_string(f):
 
 @render
 def index(request):
+    """ Генерация главной страницы
+    """
     request_user = request.user if request.user.is_authenticated() else None
     sensors = Sensor.objects.filter(node__owner=request_user).all()
     return dict(
@@ -71,6 +74,8 @@ def index(request):
 
 @render
 def zone(request, zone_id):
+    """ Генерация страницы зоны
+    """
     request_user = request.user if request.user.is_authenticated() else None
     zone = Zone.objects.get(id=zone_id, owner=request_user)
     for node in zone.nodes():
@@ -85,6 +90,8 @@ def zone(request, zone_id):
 
 @render
 def node(request, node_id):
+    """ Генерация страницы ноды
+    """
     request_user = request.user if request.user.is_authenticated() else None
     node = Node.objects.get(id=node_id, owner=request_user)
     if node.host:
@@ -98,6 +105,8 @@ def node(request, node_id):
 
 @json_view
 def lamps(request, node_id):
+    """ TODO нужно выкосить
+    """
     request_user = request.user if request.user.is_authenticated() else None
     node = Node.objects.get(id=node_id, owner=request_user)
     if node.host:
@@ -108,7 +117,7 @@ def lamps(request, node_id):
 
 @json_view
 def switch(request, lamp_id, status):
-    """По одной лампе в формате запроса: ?9=true
+    """ TODO нужно выкосить
     """
     request_user = request.user if request.user.is_authenticated() else None
     lamp = Lamp.objects.get(id=lamp_id, node__owner=request_user)
@@ -138,7 +147,7 @@ def switch(request, lamp_id, status):
 
 @json_view
 def dim(request, lamp_id, value):
-    """По одной лампе в формате запроса: ?9=50
+    """ TODO нужно выкосить
     """
     request_user = request.user if request.user.is_authenticated() else None
     if int(value) <= 100 and int(value) >= 0:
@@ -157,7 +166,7 @@ def dim(request, lamp_id, value):
 
 @json_view
 def switch_zone_by_lamps(request, zone_id, status):
-    """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
+    """ TODO нужно выкосить
     """
     request_user = request.user if request.user.is_authenticated() else None
     zone = Zone.objects.get(id=zone_id, owner=request_user)
@@ -186,6 +195,8 @@ def switch_zone_by_lamps(request, zone_id, status):
 
 @json_view
 def switch_all_by_lamps(request, status):
+    """ TODO нужно выкосить
+    """
     request_user = request.user if request.user.is_authenticated() else None
     lamps = []
     result = []
@@ -215,7 +226,7 @@ def switch_all_by_lamps(request, status):
 
 @json_view
 def check(request):
-    """depricated Запрос ардуинки на внеочередную проверку - нужно избавиться
+    """ TODO нужно выкосить
     """
     request_user = request.user if request.user.is_authenticated() else None
     host = '192.168.1.222'
@@ -231,7 +242,8 @@ def check(request):
 
 @render_string
 def communicate(request, token):
-    """Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
+    """TODO нужно выкосить после настройки сокетов
+       Универсальный запрос ардуинки, присылает любую инфу и запрашивает статус
        Статус возвращает состояние сенсоров
        Порядок: ардуинка отправляет статус изменений, центр его применяет и отправляет статус ламп
        TODO получать в запросе состояние ардуинки
@@ -285,7 +297,8 @@ def communicate(request, token):
 
 @render_string
 def post(request, token):
-    """Запрос от ардуинки, присылает любую инфу
+    """TODO нужно выкосить после настройки сокетов
+       Запрос от ардуинки, присылает любую инфу
        Порядок: ардуинка отправляет статус изменений, центр его применяет
        Система применяет изменения только запрошенных пинов, остальные не трогаются
        data=1!2333232:1,2:0,3:0
@@ -300,7 +313,8 @@ def post(request, token):
 
 @render_string
 def get(request, token):
-    """Запрос от ардуинки, запрашивает информацию состояний, в которые ей нужно выставить исполнительные устройства
+    """TODO нужно выкосить после настройки сокетов
+       Запрос от ардуинки, запрашивает информацию состояний, в которые ей нужно выставить исполнительные устройства
        Не получает информацию о датчиках, если они ей не нужны
        Порядок: ардуинка отправляет статус изменений, центр его применяет
        data=1!2333232:1,2:0,3:0
@@ -322,6 +336,8 @@ def get(request, token):
 
 @json_view
 def get_sensor_data_for_morris(request, sensor_id):
+    """ Оптимизировать
+    """
     request_user = request.user if request.user.is_authenticated() else None
     sensor = Sensor.objects.get(id=sensor_id, node__owner=request_user)
     truncate_date = connection.ops.date_trunc_sql('hour', 'time')
@@ -348,6 +364,8 @@ def get_sensor_data_for_morris(request, sensor_id):
 
 @json_view
 def inventory_status(request):
+    """ TODO нужно выкосить
+    """
     request_user = request.user if request.user.is_authenticated() else None
     req = request.GET.lists()
     logger.debug("req: %s" % req)
@@ -375,7 +393,10 @@ def inventory_status(request):
 @csrf_exempt
 @json_view
 def internal_sync(request, token):
-    """Внутренний запрос на асинхронное изменения
+    """ Внутренний запрос на асинхронное изменения
+        Вызывается при запросе в сокет на изменение
+        Не требует обычной авторизации, проверка только по API
+        Должен быть закрыт из внешнего мира
     """
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
@@ -384,8 +405,6 @@ def internal_sync(request, token):
     node = Node.objects.get(token=token)
 
     device_list = json.loads(request.POST.get('data'))
-    logger.debug("!!!!")
-    logger.debug(device_list)
     node.apply_data(device_list, lazy=True)
 
     lamps = []
