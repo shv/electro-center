@@ -41,9 +41,10 @@ $(function() {
         this.switcher = $("#lamp-" + this.id + " input[data-toggle=toggle]");
         this.slider = $("#lamp-" + this.id + " .dimmer");
         this.value = 0;
+        var sliderInUse = false;
 
         this.changeSwitcherStatus = function (){
-            var data = {"id": id, "object_type": "lamp", "on": $(this).prop('checked')},
+            var data = [{"id": id, "object_type": "lamp", "on": $(this).prop('checked')}],
                 request = new Request();
 
             request.process(data);
@@ -52,7 +53,7 @@ $(function() {
 
         /* Slider */
         this.changeSliderValue = function(slideEvt) {
-            var data = {"id": id, "object_type": "lamp", "level": slideEvt.value.newValue},
+            var data = [{"id": id, "object_type": "lamp", "level": slideEvt.value.newValue}],
                 request = new Request();
 
             request.process(data);
@@ -63,6 +64,8 @@ $(function() {
             }
         });
         this.slider.on('change', this.changeSliderValue);
+        this.slider.on('slideStart', function(){sliderInUse = true; log("sliderInUse true")});
+        this.slider.on('slideStop', function(){sliderInUse = false; log("sliderInUse false")});
         /* End Slider */
 
         this.switchOn = function (){
@@ -87,7 +90,6 @@ $(function() {
             $('#lamp-'+this.id).find('.panel').removeClass('panel-default').removeClass('panel-primary').addClass('panel-danger');
         };
         this.switchByStatus = function(status){
-            console.log(status);
             if (!this.switcher.length) return;
             if (status === true) {
                 this.switchOn();
@@ -98,9 +100,12 @@ $(function() {
             }
         };
         this.setValue = function (value){
-            this.value = value;
-            console.log(this.slider);
-            this.slider.slider('setValue', value);
+            log(sliderInUse);
+            if (!sliderInUse) {
+                this.value = value;
+                log(this.slider);
+                this.slider.slider('setValue', value);
+            }
         };
     }
 
@@ -113,9 +118,9 @@ $(function() {
 
     /* Переключалка всей зоны */
     $(".zone-lamps-switcher").click(function(){
-        var id = $(this).attr('data-zone-id'),
+        var id = $(this).attr('data-zone-id')*1,
             status = $(this).attr('data-status'),
-            data = {"id": id, "object_type": "zone_lamps", "on": status=="true"},
+            data = [{"id": id, "object_type": "zone_lamps", "on": status=="true"}],
             request = new Request();
         request.process(data);
     });
@@ -123,7 +128,7 @@ $(function() {
     /* Переключалка всей зоны */
     $(".all-lamps-switcher").click(function(){
         var status = $(this).attr('data-status'),
-            data = {"object_type": "all_lamps", "on": status=="true"},
+            data = [{"object_type": "all_lamps", "on": status=="true"}],
             request = new Request();
         request.process(data);
     });
@@ -162,7 +167,7 @@ $(function() {
             });
         });
     }
-    setInterval(updateMorris, 10000);
+    //setInterval(updateMorris, 10000);
 
     /*Socket*/
     if (!("WebSocket" in window)) {

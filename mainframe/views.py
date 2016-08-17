@@ -18,7 +18,7 @@ from jsonview.decorators import json_view #https://pypi.python.org/pypi/django-j
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import Node, Lamp, Zone, Sensor
-from mainframe.utils import parse_device_string, generate_device_string
+from mainframe.utils import parse_device_string, generate_device_string, stats_decorator
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
@@ -41,6 +41,8 @@ def render(f):
         context.update(dict(
             zones = Zone.objects.filter(owner=request_user).all(),
             nodes = Node.objects.filter(owner=request_user).all(),
+            parent_template = context.get('parent_template'),
+            active_menu = context.get('active_menu'),
             settings = settings,
         ))
 
@@ -60,6 +62,7 @@ def render_string(f):
     return tmp
 
 
+@stats_decorator
 @render
 def index(request):
     """ Генерация главной страницы
@@ -72,6 +75,7 @@ def index(request):
     )
 
 
+@stats_decorator
 @render
 def zone(request, zone_id):
     """ Генерация страницы зоны
@@ -84,10 +88,12 @@ def zone(request, zone_id):
 
     return dict(
         template = 'mainframe/zone.html',
+        active_menu = 'zones',
         zone = zone
     )
 
 
+@stats_decorator
 @render
 def node(request, node_id):
     """ Генерация страницы ноды
@@ -334,6 +340,7 @@ def get(request, token):
     return lamps
 
 
+@stats_decorator
 @json_view
 def get_sensor_data_for_morris(request, sensor_id):
     """ Оптимизировать
@@ -391,8 +398,9 @@ def inventory_status(request):
 
 
 @csrf_exempt
+@stats_decorator
 @json_view
-def internal_sync(request, token):
+def api_sync(request):
     """ Внутренний запрос на асинхронное изменения
         Вызывается при запросе в сокет на изменение
         Не требует обычной авторизации, проверка только по API
@@ -401,10 +409,14 @@ def internal_sync(request, token):
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
         return {"error": "Please pass a correct API key."}
+    node_id = request.POST.get("node_id")
 
-    node = Node.objects.get(token=token)
+    node = Node.objects.get(id=node_id)
 
+    logger.debug(request.POST.get('data'))
     device_list = json.loads(request.POST.get('data'))
+    logger.debug(device_list)
+
     node.apply_data(device_list, lazy=True)
 
     lamps = []
@@ -412,20 +424,129 @@ def internal_sync(request, token):
     for lamp in node.lamp_set.all():
         result.append({
             'node': node.id,
-            'pin': lamp.pin,
+            'external_id': lamp.external_id,
             'on': lamp.on,
+            'auto': lamp.auto,
             'object_type': 'lamp',
             'id': lamp.id,
+            'dimmable': lamp.dimmable,
             'level': lamp.level if lamp.dimmable else ''
             })
 
     for sensor in node.sensor_set.all():
         result.append({
             'node': node.id,
-            'pin': sensor.pin,
+            'external_id': sensor.external_id,
             'object_type': 'sensor',
             'id': sensor.id,
             'value': sensor.value
             })
 
+    logger.debug(result)
+    #return json.dumps(result)
+    return result
+
+@csrf_exempt
+@stats_decorator
+@json_view
+def ecc_sync(request):
+    """ Внутренний запрос на асинхронное изменения
+        Вызывается при запросе в сокет на изменение
+        Не требует обычной авторизации, проверка только по API
+        Должен быть закрыт из внешнего мира
+    """
+    api_key = request.POST.get("api_key")
+    if api_key != settings.API_KEY:
+        return {"error": "Please pass a correct API key."}
+    user_id = request.POST.get("user_id")
+
+    device_list = json.loads(request.POST.get('data'))
+    logger.debug("device_list: %s" % device_list)
+    device_ids_by_type = {'lamp': {}, 'sensor': {}, 'zone_lamps': {}, 'all_lamps': {}}
+    for device in device_list:
+        device_ids_by_type[device["object_type"]][device.get("id")] = device
+
+    logger.debug("device_ids_by_type: %s" % device_ids_by_type)
+
+    nodes = {}
+    lamps = []
+    sensors = []
+    lamps_for_zone = {} # Дополнительные значения лам при переключении всей зоны
+    if len(device_ids_by_type["lamp"].keys()):
+        lamps = list(Lamp.objects.filter(id__in=device_ids_by_type["lamp"].keys()))
+
+    if len(device_ids_by_type["zone_lamps"].keys()):
+        # Единичная лампа имеет приоритет перед зоной
+        for zone in Zone.objects.filter(id__in=device_ids_by_type["zone_lamps"].keys(), owner_id=user_id).all():
+            for zone_lamp in zone.lamps.all():
+                if zone_lamp.id not in device_ids_by_type["lamp"]:
+                    lamps.append(zone_lamp)
+                    lamps_for_zone[zone_lamp.id] = {"on": device_ids_by_type["zone_lamps"][zone.id]["on"]}
+
+    if len(device_ids_by_type["all_lamps"].keys()):
+        # Единичная лампа и зона имеет приоритет перед зоной
+        for node in Node.objects.filter(owner_id=user_id):
+            nodes[node.id] = node
+        for node_lamp in Lamp.objects.filter(node_id__in=nodes.keys()):
+            if node_lamp.id not in device_ids_by_type["lamp"] and node_lamp.id not in lamps_for_zone:
+                lamps.append(node_lamp)
+                lamps_for_zone[node_lamp.id] = {"on": device_ids_by_type["all_lamps"][None]["on"]}
+
+    if len(device_ids_by_type["sensor"].keys()):
+        sensors = Sensor.objects.filter(id__in=device_ids_by_type["sensor"].keys())
+
+
+    logger.debug("lamps: %s" % lamps)
+    logger.debug("sensors: %s" % sensors)
+    logger.debug("lamps_for_zone: %s" % lamps_for_zone)
+
+    for lamp in lamps:
+        if lamp.node_id not in nodes:
+            nodes[lamp.node_id] = Node.objects.get(id=lamp.node_id, owner_id=user_id)
+
+        # Сначала проверяем единичные лампы, затем зону
+        lamp_ = device_ids_by_type["lamp"].get(lamp.id, lamps_for_zone.get(lamp.id))
+        if lamp_.get("on") is not None:
+            lamp.on = lamp_["on"]
+        if lamp_.get("auto") is not None:
+            lamp.auto = lamp_["auto"]
+        if lamp_.get("level") is not None:
+            lamp.level = lamp_["level"]
+        lamp.save()
+
+
+    for sensor in sensors:
+        if sensor.node_id not in nodes:
+            nodes[sensor.node_id] = Node.objects.get(id=sensor.node_id, owner_id=user_id)
+            # TODO
+
+    result = {}
+    for lamp in lamps:
+        if lamp.node_id not in result:
+            result[lamp.node_id] = []
+
+        result[lamp.node_id].append({
+            'node': lamp.node_id,
+            'pin': lamp.pin,
+            'on': lamp.on,
+            'auto': lamp.auto,
+            'object_type': 'lamp',
+            'id': lamp.id,
+            'external_id': lamp.external_id,
+            'dimmable': lamp.dimmable,
+            'level': lamp.level if lamp.dimmable else ''
+            })
+
+    for sensor in sensors:
+        if sensor.node_id not in result:
+            result[sensor.node_id] = []
+
+        result.append({
+            'node': sensor.node_id,
+            'pin': sensor.pin,
+            'object_type': 'sensor',
+            'id': sensor.id,
+            'external_id': lamp.external_id,
+            'value': sensor.value
+            })
     return result

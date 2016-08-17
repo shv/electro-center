@@ -16,7 +16,7 @@ Including another URLconf
 from django.conf.urls import include, url
 from django.contrib import admin
 from arduino.views import switch, status, dim
-from mainframe.views import communicate, get, post, internal_sync
+from mainframe.views import communicate, get, post, api_sync, ecc_sync
 
 
 urlpatterns = [
@@ -29,5 +29,6 @@ urlpatterns = [
     url(r'^api/v0.1/communicate/(?P<token>[a-z0-9\-]+)$', communicate, name='communicate'),
     url(r'^api/v0.1/post/(?P<token>[a-z0-9\-]+)$', post, name='post'),
     url(r'^api/v0.1/get/(?P<token>[a-z0-9\-]+)$', get, name='get'),
-    url(r'^internal_api/internal_sync/(?P<token>[a-z0-9\-]+)$', internal_sync, name='internal_sync'),
+    url(r'^internal_api/api_sync$', api_sync, name='api_sync'),
+    url(r'^internal_api/ecc_sync$', ecc_sync, name='ecc_sync'),
 ]
