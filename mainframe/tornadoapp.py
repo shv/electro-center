@@ -234,7 +234,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = (
-            (r"/", TesterHandler),
+            (r"/ws-test", TesterHandler),
             (r'/ws', ECCHandler),
             (r'/ws/([0-9a-f\-]+)', APIHandler),
         )
