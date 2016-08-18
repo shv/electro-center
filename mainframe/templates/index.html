@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSockets Client</title>  
+  <script src="http://localhost:8000/static/js/jquery.min.js"></script>
+</head>
+<body>
+Enter text to send to the websocket server:
+<div id="send">
+    <input type="text" id="data" size="100"/><br>
+    <input type="button" id="sendtext" value="send text"/>
+</div>
+<div id="output"></div>
+</body>
+</html>
+<script>
+var global_settings = {
+  socket_url: "{{ settings.SOCKET_URL_FOR_ECC }}",
+  debug: {{ str(settings.DEBUG).lower() }},
+};
+
+jQuery(function($){
+  var path = window.location.hash.replace('#', '');
+  var host = global_settings.socket_url+"/"+path;
+  var $txt = $("#data");
+  var $btnSend = $("#sendtext");
+  var socket;
+
+  if (!("WebSocket" in window)) {
+    alert("Your browser does not support web sockets");
+  }else{
+    setup();
+  }
+
+  $txt.focus();
+
+  // event handlers for UI
+  $btnSend.on('click',function(){
+    var text = $txt.val();
+    if(text == ""){
+      return;
+    }
+    try {
+      socket.send(text);
+    } catch (err) {
+      socket.close();  
+      return;      
+    }
+
+    $txt.val("");    
+  });
+
+  $txt.keypress(function(evt){
+    if(evt.which == 13){
+      $btnSend.click();
+    }
+  });
+
+
+  function setup(){
+   
+    // Note: You have to change the host var 
+    // if your client runs on a different machine than the websocket server
+    
+    socket = new WebSocket(host);
+    //console.log("socket status: " + socket.readyState);   
+    
+
+    // event handlers for websocket
+    if(socket){
+
+      socket.onopen = function(){
+        //alert("connection opened....");
+      }
+
+      socket.onmessage = function(msg){
+        showServerResponse(msg.data);
+      }
+
+      socket.onclose = function(){
+        //alert("connection closed....");
+        showServerResponse("The connection has been closed.");
+        setTimeout(function(){setup()}, 5000);
+      }
+
+    }else{
+      console.log("invalid socket");
+    }
+
+    function showServerResponse(txt){
+      var p = document.createElement('p');
+      p.innerHTML = txt;
+      document.getElementById('output').appendChild(p); 
+    }	
+
+
+  }
+
+
+  
+
+
+});
+
+</script>

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# WebSocket Tornado for Django: https://habrahabr.ru/post/160123/
 import datetime
 import json
 import time
@@ -29,7 +30,8 @@ c.connect()
 class TesterHandler(tornado.web.RequestHandler):
     def get(self):
         loader = tornado.template.Loader(".")
-        self.write(loader.load("mainframe/templates/index.html").generate())
+        template = loader.load("mainframe/templates/index.html")
+        self.write(template.generate(settings=settings))
 
 class ECCHandler(tornado.websocket.WebSocketHandler):
     # ECC API
