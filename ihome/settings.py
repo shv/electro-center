@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Django settings for ihome project.
 
@@ -8,6 +9,8 @@ https://docs.djangoproject.com/en/1.9/topics/settings/
 
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.9/ref/settings/
+
+Django на production. uWSGI + nginx: https://habrahabr.ru/post/226419/
 """
 
 import os
