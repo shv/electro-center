@@ -22,6 +22,19 @@ $(function() {
                     var sensor = data[i];
                     $('#sensor-'+sensor.id).find('div.panel-body .sensor-value').html(sensor.value);
                 }
+                if (data[i].object_type == 'node') {
+                    var node = data[i];
+                    log(node);
+                    if (node.online) {
+                        $('[data-node-id='+node.id+']').addClass("online");
+                        $('[data-node-id='+node.id+']').attr("title", "Последняя активность: " + node.last_answer_time);
+                        $('.node_last_answer_time').html("Последняя активность: " + node.last_answer_time);
+                    } else {
+                        $('[data-node-id='+node.id+']').removeClass("online");
+                        $('[data-node-id='+node.id+']').attr("title", "Последняя активность: " + node.last_answer_time);
+                        $('.node_last_answer_time').html("Последняя активность: " + node.last_answer_time);
+                    }
+                }
             }
         }
         this.process = function(data) {

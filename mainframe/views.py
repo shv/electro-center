@@ -72,9 +72,6 @@ def zone(request, zone_id):
     """
     request_user = request.user if request.user.is_authenticated() else None
     zone = Zone.objects.get(id=zone_id, owner=request_user)
-    for node in zone.nodes():
-        if node.host:
-            node.refresh_all()
 
     return dict(
         template = 'mainframe/zone.html',
@@ -90,8 +87,7 @@ def node(request, node_id):
     """
     request_user = request.user if request.user.is_authenticated() else None
     node = Node.objects.get(id=node_id, owner=request_user)
-    if node.host:
-        node.refresh_all()
+
     return dict(
         template = 'mainframe/node.html',
         active_menu = 'nodes',
@@ -172,6 +168,13 @@ def api_sync(request):
             'id': sensor.id,
             'value': sensor.value
             })
+
+    result.append({
+        'object_type': 'node',
+        'id': node.id,
+        'online': node.online,
+        'last_answer_time': node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
 
     logger.debug(result)
     #return json.dumps(result)
@@ -258,7 +261,6 @@ def ecc_sync(request):
 
         result[lamp.node_id].append({
             'node': lamp.node_id,
-            'pin': lamp.pin,
             'on': lamp.on,
             'auto': lamp.auto,
             'object_type': 'lamp',
@@ -274,7 +276,6 @@ def ecc_sync(request):
 
         result.append({
             'node': sensor.node_id,
-            'pin': sensor.pin,
             'object_type': 'sensor',
             'id': sensor.id,
             'external_id': lamp.external_id,

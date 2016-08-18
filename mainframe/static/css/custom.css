@@ -1,3 +1,7 @@
 .slider .slider-selection {
     background: #337ab7;
 }
+
+a.online i.fa {
+	color: red;
+}

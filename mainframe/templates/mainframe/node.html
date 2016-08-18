@@ -75,8 +75,8 @@
     </div>
     {% endfor %}
     <hr>
-    <div class="row">
-        Послений ответ был: {{ node.last_answer_time }}
+    <div class="row node_last_answer_time">
+        Последняя активность: {{ node.last_answer_time|date:"Y-d-m H:i:s" }}
     </div>
     <hr>
 {% endblock content %}

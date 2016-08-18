@@ -16,6 +16,7 @@ import tornado.template
 
 from django.conf import settings
 
+from django.utils import timezone
 from django.utils.module_loading import import_module
 session_engine = import_module(settings.SESSION_ENGINE)
 
@@ -144,7 +145,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         # Инициализация ноды при подключении.
         # Нужно добавить режим чтения ноды при подключении в зависимости от ноды
         result = []
-        for lamp in node.lamp_set.all():
+        for lamp in self.node.lamp_set.all():
             result.append({
                 'on': lamp.on,
                 'auto': lamp.auto,
@@ -153,7 +154,14 @@ class APIHandler(tornado.websocket.WebSocketHandler):
                 'external_id': lamp.external_id,
                 'level': lamp.level if lamp.dimmable else ''
             })
-
+        self.node.last_answer_time = timezone.now()
+        self.node.online = True
+        self.node.save()
+        c.publish(self.channel, json.dumps({
+            "env": "node",
+            "node_id": self.node.id,
+            "data": [{"id": self.node.id, "object_type": "node", "online": True, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S")}],
+        }))
         self.write_message(str(generate_device_string(result)))
 
 
@@ -214,6 +222,13 @@ class APIHandler(tornado.websocket.WebSocketHandler):
 
     @stats_decorator
     def on_close(self):
+        self.node.online = False
+        self.node.save()
+        c.publish(self.channel, json.dumps({
+            "env": "node",
+            "node_id": self.node.id,
+            "data": [{"id": self.node.id, "object_type": "node", "online": False, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S")}],
+        }))
         try:
             self.client.unsubscribe(self.channel)
         except AttributeError:
