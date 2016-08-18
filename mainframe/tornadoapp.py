@@ -129,8 +129,10 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         super(APIHandler, self).__init__(*args, **kwargs)
         self.client = brukva.Client()
         self.client.connect()
+        self.io_loop = tornado.ioloop.IOLoop.instance()
         # Ниже принудительный сброс флага online при рестарте приложения (пока так)
         Node.objects.filter(online=True).update(online=False)
+
 
     @stats_decorator
     def open(self, token):
@@ -169,7 +171,13 @@ class APIHandler(tornado.websocket.WebSocketHandler):
                     'last_answer_time': self.node.last_answer_time.isoformat()
             }],
         }))
+        self.ping_timeout = self.io_loop.call_later(
+            delay=self.get_ping_timeout(initial=True),
+            callback=self._send_ping,
+        )
+
         self.write_message(str(generate_device_string(result)))
+
 
 
     @stats_decorator
@@ -257,6 +265,54 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             datetime.timedelta(0.00001),
             check
         )
+
+    @staticmethod
+    def get_ping_timeout(initial=False):
+        """
+        Args:
+            initial: First is true when it is initial ping to be sent
+        """
+        return 2
+
+    @staticmethod
+    def get_pong_timeout():
+        """
+        Returns pong timeout for pong
+        """
+        return 2
+
+    def on_pong(self, data):
+        print('Received pong')
+        if hasattr(self, 'ping_timeout'):
+            # clear timeout set by for ping pong (heartbeat) messages
+            self.io_loop.remove_timeout(self.ping_timeout)
+
+        # send new ping message after `get_ping_timeout` time
+        self.ping_timeout = self.io_loop.call_later(
+            delay=self.get_ping_timeout(),
+            callback=self._send_ping,
+        )
+
+    def _send_ping(self):
+        """
+        Send ping message to client.
+
+        Creates a time out for pong message.
+        If timeout is not cleared then closes the connection.
+        """
+        print('Sending ping')
+        self.ping(b'a')
+        self.ping_timeout = self.io_loop.call_later(
+            delay=self.get_pong_timeout(),
+            callback=self._connection_timeout,
+        )
+
+    def _connection_timeout(self):
+        """ If no pong message is received within the timeout then close the connection """
+        print("Ping pong timeout")
+        self.close(None, 'Connection Timeout')
+
+
 
 class Application(tornado.web.Application):
     def __init__(self):
