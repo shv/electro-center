@@ -173,7 +173,7 @@ def api_sync(request):
         'object_type': 'node',
         'id': node.id,
         'online': node.online,
-        'last_answer_time': node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S"),
+        'last_answer_time': node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S%z"),
         })
 
     logger.debug(result)

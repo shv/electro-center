@@ -160,7 +160,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         c.publish(self.channel, json.dumps({
             "env": "node",
             "node_id": self.node.id,
-            "data": [{"id": self.node.id, "object_type": "node", "online": True, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S")}],
+            "data": [{"id": self.node.id, "object_type": "node", "online": True, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S%z")}],
         }))
         self.write_message(str(generate_device_string(result)))
 
@@ -227,7 +227,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         c.publish(self.channel, json.dumps({
             "env": "node",
             "node_id": self.node.id,
-            "data": [{"id": self.node.id, "object_type": "node", "online": False, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S")}],
+            "data": [{"id": self.node.id, "object_type": "node", "online": False, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S%z")}],
         }))
         try:
             self.client.unsubscribe(self.channel)

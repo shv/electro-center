@@ -26,13 +26,27 @@ $(function() {
                     var node = data[i];
                     log(node);
                     if (node.online) {
+                        var last_answer_time = new Date(node.last_answer_time),
+                            last_answer_text = "Последняя активность: "
+                                + last_answer_time.getFullYear() + "-"
+                                + (last_answer_time.getMonth() < 10 ? '0' : '')
+                                + last_answer_time.getMonth() + "-"
+                                + (last_answer_time.getDate() < 10 ? '0' : '')
+                                + last_answer_time.getDate() + " "
+                                + (last_answer_time.getHours() < 10 ? '0' : '')
+                                + last_answer_time.getHours() + ":"
+                                + (last_answer_time.getMinutes() < 10 ? '0' : '')
+                                + last_answer_time.getMinutes() + ":"
+                                + (last_answer_time.getSeconds() < 10 ? '0' : '')
+                                + last_answer_time.getSeconds();
+                        console.log(last_answer_time);
                         $('[data-node-id='+node.id+']').addClass("online");
-                        $('[data-node-id='+node.id+']').attr("title", "Последняя активность: " + node.last_answer_time);
-                        $('.node_last_answer_time').html("Последняя активность: " + node.last_answer_time);
+                        $('[data-node-id='+node.id+']').attr("title", last_answer_text);
+                        $('.node_last_answer_time').html(last_answer_text);
                     } else {
                         $('[data-node-id='+node.id+']').removeClass("online");
-                        $('[data-node-id='+node.id+']').attr("title", "Последняя активность: " + node.last_answer_time);
-                        $('.node_last_answer_time').html("Последняя активность: " + node.last_answer_time);
+                        $('[data-node-id='+node.id+']').attr("title", last_answer_text);
+                        $('.node_last_answer_time').html(last_answer_text);
                     }
                 }
             }
