@@ -129,6 +129,8 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         super(APIHandler, self).__init__(*args, **kwargs)
         self.client = brukva.Client()
         self.client.connect()
+        # Ниже принудительный сброс флага online при рестарте приложения (пока так)
+        Node.objects.filter(online=True).update(online=False)
 
     @stats_decorator
     def open(self, token):
@@ -160,7 +162,12 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         c.publish(self.channel, json.dumps({
             "env": "node",
             "node_id": self.node.id,
-            "data": [{"id": self.node.id, "object_type": "node", "online": True, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S%z")}],
+            "data": [{
+                    "id": self.node.id,
+                    "object_type": "node",
+                    "online": True,
+                    'last_answer_time': self.node.last_answer_time.isoformat()
+            }],
         }))
         self.write_message(str(generate_device_string(result)))
 
@@ -227,7 +234,12 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         c.publish(self.channel, json.dumps({
             "env": "node",
             "node_id": self.node.id,
-            "data": [{"id": self.node.id, "object_type": "node", "online": False, 'last_answer_time': self.node.last_answer_time.strftime("%Y-%m-%d %H:%M:%S%z")}],
+            "data": [{
+                    "id": self.node.id,
+                    "object_type": "node",
+                    "online": False,
+                    'last_answer_time': self.node.last_answer_time.isoformat()
+            }],
         }))
         try:
             self.client.unsubscribe(self.channel)

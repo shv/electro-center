@@ -27,10 +27,10 @@ $(function() {
                     log(node);
                     if (node.online) {
                         var last_answer_time = new Date(node.last_answer_time),
-                            last_answer_text = "Последняя активность: "
+                            last_answer_text = global_settings.last_answer_time_prefix
                                 + last_answer_time.getFullYear() + "-"
                                 + (last_answer_time.getMonth() < 10 ? '0' : '')
-                                + last_answer_time.getMonth() + "-"
+                                + (last_answer_time.getMonth() + 1) + "-"
                                 + (last_answer_time.getDate() < 10 ? '0' : '')
                                 + last_answer_time.getDate() + " "
                                 + (last_answer_time.getHours() < 10 ? '0' : '')
