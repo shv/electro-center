@@ -16,11 +16,11 @@
                 <div class="panel-body">
                     {% if lamp_.dimmable %}
                     <p style="text-align: center">
-                        <input id="ex1" data-slider-id='ex1Slider' type="text" data-slider-min="0" data-slider-max="100" data-slider-step="5" data-slider-value="{{ lamp_.level }}" data-url="{% url 'dim' lamp_.id ''%}" class="dimmer"/>
+                        <input id="ex1" data-slider-id='ex1Slider' type="text" data-slider-min="0" data-slider-max="100" data-slider-step="5" data-slider-value="{{ lamp_.level }}" class="dimmer"/>
                     </p>
                     {% endif %}
                     <p style="text-align: center">
-                        <input type="checkbox" data-toggle="toggle" data-url-on="{% url 'switch' lamp_.id 'on' %}" data-url-off="{% url 'switch' lamp_.id 'off' %}" data-on="Enabled" data-off="Disabled" class="" style="display: none"{% if lamp_.on %} checked{% endif %}{% if not lamp_.dimmable %} data-height="55"{% else %} data-size="mini"{% endif %}>
+                        <input type="checkbox" data-toggle="toggle" data-on="Enabled" data-off="Disabled" class="" style="display: none"{% if lamp_.on %} checked{% endif %}{% if not lamp_.dimmable %} data-height="55"{% else %} data-size="mini"{% endif %}>
                     </p>
                 </div>
             </div>
@@ -78,5 +78,4 @@
         <!-- /.col-lg-12 -->
     </div>
     {% endfor %}
-    <div class="autoupdate" data-url="{% url 'inventory_status' %}?{% for lamp_ in zone.lamps.all %}lamp_id={{ lamp_.id }}{% if not forloop.last %}&{% endif %}{% endfor %}&{% for sensor_ in zone.sensors.all %}sensor_id={{ sensor_.id }}{% if not forloop.last %}&{% endif %}{% endfor %}"></div>
 {% endblock content %}

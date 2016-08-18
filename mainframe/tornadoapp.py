@@ -21,13 +21,12 @@ session_engine = import_module(settings.SESSION_ENGINE)
 from django.contrib.auth.models import User
 
 from mainframe.models import Node, Lamp, Zone
-from mainframe.utils import switch, switch_zone_by_lamps, \
-            switch_all_by_lamps, parse_device_string, generate_device_string, stats_decorator
+from mainframe.utils import parse_device_string, generate_device_string, stats_decorator
 
 c = brukva.Client()
 c.connect()
 
-class MainHandler(tornado.web.RequestHandler):
+class TesterHandler(tornado.web.RequestHandler):
     def get(self):
         loader = tornado.template.Loader(".")
         self.write(loader.load("mainframe/templates/index.html").generate())
@@ -35,7 +34,6 @@ class MainHandler(tornado.web.RequestHandler):
 class ECCHandler(tornado.websocket.WebSocketHandler):
     # ECC API
     channels = {}
-    #nodes = []
     def __init__(self, *args, **kwargs):
         super(ECCHandler, self).__init__(*args, **kwargs)
         self.client = brukva.Client()
@@ -53,7 +51,6 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
 
         self.user = User.objects.get(id=self.user_id)
         for node in Node.objects.filter(owner=self.user_id).all():
-            #self.nodes[node.id] = node
             self.channels[node.id] = 'node_%d_messages' % node.id
             self.client.subscribe(self.channels[node.id])
             self.client.listen(self.show_new_message)
@@ -81,8 +78,6 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
         if len(message) > 10000:
             return
         data = json.loads(message)
-        # print "message: %s" % message
-        # print "data: %s" % data
         # Применяем асинхронно изменения
         http_client = tornado.httpclient.AsyncHTTPClient()
         request = tornado.httpclient.HTTPRequest(
@@ -155,7 +150,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
                 'id': lamp.id,
                 'external_id': lamp.external_id,
                 'level': lamp.level if lamp.dimmable else ''
-                })
+            })
 
         self.write_message(str(generate_device_string(result)))
 
@@ -237,7 +232,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = (
-            (r"/", MainHandler),
+            (r"/", TesterHandler),
             (r'/ws', ECCHandler),
             (r'/ws/([0-9a-f\-]+)', APIHandler),
         )

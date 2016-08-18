@@ -10,66 +10,6 @@ from mainframe.models import Lamp, Zone, Node
 logger = logging.getLogger(__name__)
 
 
-def switch(user, lamp_id, status, level):
-    """По одной лампе в формате запроса: ?9=true
-    """
-    lamp = Lamp.objects.get(id=lamp_id, node__owner=user)
-    node = lamp.node
-    if level is not None and int(level) <= 100 and int(level) >= 0:
-        lamp.level = level
-
-    if status is not None:
-        lamp.on = status
-
-    lamp.save()
-
-    result = {node.id: []}
-    lamp = Lamp.objects.get(id=lamp_id)
-    l = model_to_dict(lamp, fields=[], exclude=[])
-    l['object_type'] = 'lamp'
-    result[node.id].append(l)
-
-    return result
-
-def switch_zone_by_lamps(user, zone_id, status):
-    """Работа с зоной по одной лампе, пока ардуинка не поддерживает много параметров
-       TODO отпралять в разные очереди редиса
-    """
-
-    zone = Zone.objects.get(id=zone_id, owner=user)
-    for lamp in zone.lamps.all():
-        node = lamp.node
-        lamp.on = status
-        lamp.save()
-
-    result = {}
-    for lamp in zone.lamps.all():
-        l = model_to_dict(lamp, fields=[], exclude=[])
-        l['object_type'] = 'lamp'
-        if lamp.node_id not in result:
-            result[lamp.node_id] = []
-        result[lamp.node_id].append(l)
-
-    return result
-
-
-def switch_all_by_lamps(user, status):
-    result = {}
-    for node in Node.objects.filter(owner=user).all():
-        for lamp in node.lamp_set.all():
-            node = lamp.node
-            lamp.on = status
-            lamp.save()
-
-        for lamp in node.lamp_set.all():
-            l = model_to_dict(lamp, fields=[], exclude=[])
-            l['object_type'] = 'lamp'
-            if lamp.node_id not in result:
-                result[lamp.node_id] = []
-            result[lamp.node_id].append(l)
-
-    return result
-
 def parse_device_string(device_string):
     """Парсер строки GET запроса для одной ноды
     """

@@ -25,7 +25,6 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'arduino.apps.ArduinoConfig',
     'mainframe.apps.MainframeConfig',
     'django.contrib.admin',
     'django.contrib.auth',

@@ -14,7 +14,6 @@ $(function() {
                     if (switcher) {
                         switcher.switchByStatus(lamp.on);
                         if (lamp.dimmable) {
-                            // TODO Выставляем значение при отпускании ползунка, либо если ползунок не схвачен
                             switcher.setValue(lamp.level);
                         }
                     }
