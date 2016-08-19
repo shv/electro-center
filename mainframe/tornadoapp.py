@@ -171,10 +171,13 @@ class APIHandler(tornado.websocket.WebSocketHandler):
                     'last_answer_time': self.node.last_answer_time.isoformat()
             }],
         }))
-        self.ping_timeout = self.io_loop.call_later(
-            delay=self.get_ping_timeout(initial=True),
-            callback=self._send_ping,
-        )
+
+        # https://github.com/tornadoweb/tornado/issues/1763
+        if self.node.pinging:
+            self.ping_timeout = self.io_loop.call_later(
+                delay=self.get_ping_timeout(initial=True),
+                callback=self._send_ping,
+            )
 
         self.write_message(str(generate_device_string(result)))
 
@@ -272,7 +275,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         Args:
             initial: First is true when it is initial ping to be sent
         """
-        return 2
+        return 5
 
     @staticmethod
     def get_pong_timeout():

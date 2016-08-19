@@ -321,7 +321,7 @@
                             <a href="#"><i class="glyphicon glyphicon-scale fa-fw"></i> Ардуинки<span class="fa arrow"></span></a>
                             <ul class="nav nav-second-level">
                                 {% for node_ in nodes %}
-                                    <li><a class="{% if node_.online %}online{% endif %}" data-node-id="{{ node_.id }}" href="{% url 'node' node_.id %}" title="{{ last_answer_time_prefix_ }}{{ node_.last_answer_time|date:"Y-m-d H:i:s" }}"><i class="fa fa-circle fa-fw"></i> {{ node_.name }}</a></li>
+                                    <li><a class="{% if node_.online %}online{% endif %}" data-node-id="{{ node_.id }}" href="{% url 'node' node_.id %}" title="{{ last_answer_time_prefix_ }}{{ node_.last_answer_time|date:"Y-m-d H:i:s" }}"><i class="fa fa-circle{% if not node_.pinging %}-o{% endif %} fa-fw"></i> {{ node_.name }}</a></li>
                                 {% endfor %}
                             </ul>
                             <!-- /.nav-second-level -->

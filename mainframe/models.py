@@ -31,59 +31,10 @@ class Node(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
     token = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, blank=True)
     online = models.BooleanField(default=False)
+    pinging = models.BooleanField(default=False)
 
     def __str__(self):
         return "%s" % (self.name)
-
-
-    def apply_data(self, data, lazy=False):
-        logger.info("data: %s" % data)
-        data_dict = {}
-        for d in data:
-            data_dict[d["external_id"]] = d
-        logger.info("data_dict: %s" % data_dict)
-        for lamp in self.lamp_set.all():
-            if lamp.external_id in data_dict:
-                lamp.on = data_dict[lamp.external_id]["on"]
-                lamp.auto = data_dict[lamp.external_id]["auto"]
-                level = data_dict[lamp.external_id].get("level")
-                lamp.level = level if level is not None else 0
-                logger.info("lamp.level: %s" % lamp.level)
-                # Автоматически проставляем возможность диммирования лампы
-                lamp.dimmable = True if data_dict[lamp.external_id].get("level") is not None else False
-                logger.info("%s: %s" % (lamp.external_id, lamp.on))
-                lamp.save()
-
-        # Значения сенсоров нужно применять не чаще чем раз в 5 секунд
-        for sensor in self.sensor_set.all():
-            if sensor.external_id in data_dict:
-                time_now = timezone.now()
-                # Период обновления должен зависеть от того, облако это или нет
-                # Есть смысл вообще сравнивать с предыдущим значением
-                if sensor.sensorhistory_set.filter(time__gt=time_now-timezone.timedelta(seconds=5)):
-                    logger.debug("Skip...")
-                    continue
-
-                logger.debug("Update...")
-
-
-                sensor.value = data_dict[sensor.external_id]["value"]
-                sensor.time = time_now
-                sensor.save()
-                sensor.sensorhistory_set.create(
-                                                value=sensor.value,
-                                                node=sensor.node,
-                                                time=sensor.time,
-                                                type=sensor.type,
-                                                external_id=sensor.external_id
-                                                )
-
-        self.last_answer_time = timezone.now()
-        self.online = True
-        self.save()
-
-        return True
-
 
     class Meta:
         ordering = ('name',)
@@ -140,7 +91,7 @@ class Sensor (models.Model):
     time = models.DateTimeField('Last value time', blank=True, null=True)
 
     def __str__(self):
-        return "%s (%s), ID: %s" % (self.name, self.node, self.external_id)
+        return "%s (%s), ID: %s" % (self.name, self.node_id, self.external_id)
 
     def save(self, *args, **kwargs):
         if self.value == u'':
@@ -198,10 +149,3 @@ class Zone(models.Model):
 
     class Meta:
         ordering = ('name',)
-
-    # def __str__(self):
-
-    #     return ' '.join([
-    #         self.first_name,
-    #         self.last_name,
-    #     ])

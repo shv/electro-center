@@ -142,13 +142,42 @@ def api_sync(request):
 
     logger.debug(request.POST.get('data'))
     device_list = json.loads(request.POST.get('data'))
-    logger.debug(device_list)
+    device_external_ids_by_type = {'lamp': {}, 'sensor': {}}
+    for device in device_list:
+        device_external_ids_by_type[device["object_type"]][device.get("external_id")] = device
 
-    node.apply_data(device_list, lazy=True)
+    logger.debug("device_external_ids_by_type: %s" % device_external_ids_by_type)
 
     lamps = []
+    sensors = []
+    if len(device_external_ids_by_type["lamp"].keys()):
+        lamps = list(Lamp.objects.filter(
+            external_id__in=device_external_ids_by_type["lamp"].keys(),
+            node_id=node.id,
+        ))
+
+    if len(device_external_ids_by_type["sensor"].keys()):
+        sensors = list(Sensor.objects.filter(
+            external_id__in=device_external_ids_by_type["sensor"].keys(),
+            node_id=node.id,
+        ))
+
+    logger.debug("lamps: %s" % lamps)
+    logger.debug("sensors: %s" % sensors)
+
     result = []
-    for lamp in node.lamp_set.all():
+    for lamp in lamps:
+        if lamp.external_id in device_external_ids_by_type["lamp"]:
+            new_lamp = device_external_ids_by_type["lamp"][lamp.external_id]
+            lamp.on = new_lamp["on"]
+            lamp.auto = new_lamp["auto"]
+            level = new_lamp.get("level")
+            lamp.level = level if level is not None else 0
+            # Автоматически проставляем возможность диммирования лампы
+            lamp.dimmable = True if new_lamp.get("level") is not None else False
+            lamp.save()
+            logger.debug("Saved Lamp: %s: %s (%s)" % (lamp.external_id, lamp.on, lamp.level))
+
         result.append({
             'node': node.id,
             'external_id': lamp.external_id,
@@ -160,7 +189,30 @@ def api_sync(request):
             'level': lamp.level if lamp.dimmable else ''
             })
 
-    for sensor in node.sensor_set.all():
+    for sensor in sensors:
+        if sensor.external_id in device_external_ids_by_type["sensor"]:
+            time_now = timezone.now()
+            # Период обновления должен зависеть от того, облако это или нет
+            # Есть смысл вообще сравнивать с предыдущим значением
+
+            sensor.value = device_external_ids_by_type["sensor"][sensor.external_id]["value"]
+            sensor.time = time_now
+            sensor.save()
+            # Проверять изменилось ли
+            last_sensor_history = list(sensor.sensorhistory_set.filter(time__gt=time_now-timezone.timedelta(seconds=5)).order_by('time'))
+            # if sensor.sensorhistory_set.filter(time__gt=time_now-timezone.timedelta(seconds=5)):
+            #     logger.debug("Skip...")
+            #     continue
+
+            # logger.debug("Update history...")
+            sensor.sensorhistory_set.create(
+                                            value=sensor.value,
+                                            node_id=sensor.node_id,
+                                            time=sensor.time,
+                                            type_id=sensor.type_id,
+                                            external_id=sensor.external_id
+                                            )
+
         result.append({
             'node': node.id,
             'external_id': sensor.external_id,
@@ -168,6 +220,10 @@ def api_sync(request):
             'id': sensor.id,
             'value': sensor.value
             })
+
+    node.last_answer_time = timezone.now()
+    node.online = True
+    node.save()
 
     result.append({
         'object_type': 'node',
@@ -177,7 +233,6 @@ def api_sync(request):
         })
 
     logger.debug(result)
-    #return json.dumps(result)
     return result
 
 @csrf_exempt
