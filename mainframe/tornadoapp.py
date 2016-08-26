@@ -300,7 +300,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         return 2
 
     def on_pong(self, data):
-        print('Received pong')
+        logger.info("Node %s: Received pong" % self.node.id)
         if hasattr(self, 'ping_timeout'):
             # clear timeout set by for ping pong (heartbeat) messages
             self.io_loop.remove_timeout(self.ping_timeout)
@@ -318,7 +318,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         Creates a time out for pong message.
         If timeout is not cleared then closes the connection.
         """
-        print('Sending ping')
+        logger.info("Node %s: Sending ping" % self.node.id)
         self.ping(b'a')
         self.ping_timeout = self.io_loop.call_later(
             delay=self.get_pong_timeout(),
@@ -327,7 +327,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
 
     def _connection_timeout(self):
         """ If no pong message is received within the timeout then close the connection """
-        print("Ping pong timeout")
+        logger.info("Node %s: Ping pong timeout" % self.node.id)
         self.close(None, 'Connection Timeout')
 
 
