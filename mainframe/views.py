@@ -19,6 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import Node, Lamp, Zone, Sensor
 from mainframe.utils import parse_device_string, generate_device_string, stats_decorator
+from time import time
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
@@ -133,6 +134,8 @@ def api_sync(request):
         Не требует обычной авторизации, проверка только по API
         Должен быть закрыт из внешнего мира
     """
+    # request_time = float(request.POST.get("request_time"))
+    # logger.info("/%.3f/ VA1" % (time() - request_time))
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
         return {"error": "Please pass a correct API key."}
@@ -232,7 +235,9 @@ def api_sync(request):
         'last_answer_time': node.last_answer_time.isoformat(),
         })
 
-    logger.debug(result)
+    # logger.info("/%.3f/ VA5 %s" % (time() - request_time, result))
+
+    # result['profile'] = {'request_time': request_time};
     return result
 
 @csrf_exempt
@@ -244,18 +249,20 @@ def ecc_sync(request):
         Не требует обычной авторизации, проверка только по API
         Должен быть закрыт из внешнего мира
     """
+    request_time = float(request.POST.get("request_time"))
+    logger.info("/%.3f/ VE1" % (time() - request_time))
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
         return {"error": "Please pass a correct API key."}
     user_id = request.POST.get("user_id")
 
     device_list = json.loads(request.POST.get('data'))
-    logger.debug("device_list: %s" % device_list)
+    logger.debug("/%.3f/ device_list: %s" % ((time() - request_time), device_list))
     device_ids_by_type = {'lamp': {}, 'sensor': {}, 'zone_lamps': {}, 'all_lamps': {}}
     for device in device_list:
         device_ids_by_type[device["object_type"]][device.get("id")] = device
 
-    logger.debug("device_ids_by_type: %s" % device_ids_by_type)
+    logger.debug("/%.3f/ device_ids_by_type: %s" % (time() - request_time, device_ids_by_type))
 
     nodes = {}
     lamps = []
@@ -285,9 +292,9 @@ def ecc_sync(request):
         sensors = Sensor.objects.filter(id__in=device_ids_by_type["sensor"].keys())
 
 
-    logger.debug("lamps: %s" % lamps)
-    logger.debug("sensors: %s" % sensors)
-    logger.debug("lamps_for_zone: %s" % lamps_for_zone)
+    logger.debug("/%.3f/ lamps: %s" % (time() - request_time, lamps))
+    logger.debug("/%.3f/ sensors: %s" % (time() - request_time, sensors))
+    logger.debug("/%.3f/ lamps_for_zone: %s" % (time() - request_time, lamps_for_zone))
 
     for lamp in lamps:
         if lamp.node_id not in nodes:
@@ -303,13 +310,16 @@ def ecc_sync(request):
             lamp.level = lamp_["level"]
         lamp.save()
 
+    logger.info("/%.3f/ VE2" % (time() - request_time))
 
     for sensor in sensors:
         if sensor.node_id not in nodes:
             nodes[sensor.node_id] = Node.objects.get(id=sensor.node_id, owner_id=user_id)
             # TODO
 
-    result = {}
+    logger.info("/%.3f/ VE3" % (time() - request_time))
+
+    result = {'profile': {'request_time': request_time}}
     for lamp in lamps:
         if lamp.node_id not in result:
             result[lamp.node_id] = []
@@ -325,15 +335,20 @@ def ecc_sync(request):
             'level': lamp.level if lamp.dimmable else ''
             })
 
+    logger.info("/%.3f/ VE4" % (time() - request_time))
+
     for sensor in sensors:
         if sensor.node_id not in result:
             result[sensor.node_id] = []
 
-        result.append({
+        result[sensor.node_id].append({
             'node': sensor.node_id,
             'object_type': 'sensor',
             'id': sensor.id,
             'external_id': lamp.external_id,
             'value': sensor.value
             })
+
+    logger.info("/%.3f/ VE5" % (time() - request_time))
+
     return result

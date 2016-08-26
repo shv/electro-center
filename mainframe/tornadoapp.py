@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 # WebSocket Tornado for Django: https://habrahabr.ru/post/160123/
+import logging
 import datetime
 import json
-import time
+# import time
+from time import time
 import urllib
 
 # pip install git+https://github.com/evilkost/brukva.git
@@ -24,6 +26,8 @@ from django.contrib.auth.models import User
 
 from mainframe.models import Node, Lamp, Zone
 from mainframe.utils import parse_device_string, generate_device_string, stats_decorator
+
+logger = logging.getLogger(__name__)
 
 c = brukva.Client()
 c.connect()
@@ -66,23 +70,31 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
     @stats_decorator
     def handle_request(self, response):
         result = json.loads(response.body)
+        logger.info("Time r: %s" % response.body)
+        start = float(result['profile']['request_time'])
+        del result['profile']
         # print result;
+        logger.info("/%.3f/ T5" % (time() - start))
         for node_id in result.keys():
             c.publish(self.channels[int(node_id)], json.dumps({
                 "env": "ecc",
                 "node_id": int(node_id),
                 "data": result[node_id],
             }))
+        logger.info("/%.3f/ T6" % (time() - start))
 
     @stats_decorator
     def on_message(self, message):
+        start = time()
         if not message:
             return
         if len(message) > 10000:
             return
         data = json.loads(message)
+        logger.info("/%.3f/ T1" % (time() - start))
         # Применяем асинхронно изменения
         http_client = tornado.httpclient.AsyncHTTPClient()
+        logger.info("/%.3f/ T2" % (time() - start))
         request = tornado.httpclient.HTTPRequest(
             "".join([
                         settings.ECC_SYNC_URL
@@ -91,10 +103,13 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
             body=urllib.urlencode({
                 "api_key": settings.API_KEY,
                 "user_id": self.user.id,
+                "request_time": time(),
                 "data": json.dumps(data),
             })
         )
+        logger.info("/%.3f/ T3" % (time() - start))
         http_client.fetch(request, self.handle_request)
+        logger.info("/%.3f/ T4" % (time() - start))
 
 
     @stats_decorator
