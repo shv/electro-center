@@ -74,14 +74,14 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
         start = float(result['profile']['request_time'])
         del result['profile']
         # print result;
-        logger.info("/%.3f/ T5" % (time() - start))
+        logger.info("/%.5f/ TE5" % (time() - start))
         for node_id in result.keys():
             c.publish(self.channels[int(node_id)], json.dumps({
                 "env": "ecc",
                 "node_id": int(node_id),
                 "data": result[node_id],
             }))
-        logger.info("/%.3f/ T6" % (time() - start))
+        logger.info("/%.5f/ TE6" % (time() - start))
 
     @stats_decorator
     def on_message(self, message):
@@ -91,10 +91,10 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
         if len(message) > 10000:
             return
         data = json.loads(message)
-        logger.info("/%.3f/ T1" % (time() - start))
+        logger.info("/%.5f/ TE1" % (time() - start))
         # Применяем асинхронно изменения
         http_client = tornado.httpclient.AsyncHTTPClient()
-        logger.info("/%.3f/ T2" % (time() - start))
+        logger.info("/%.5f/ TE2" % (time() - start))
         request = tornado.httpclient.HTTPRequest(
             "".join([
                         settings.ECC_SYNC_URL
@@ -107,9 +107,9 @@ class ECCHandler(tornado.websocket.WebSocketHandler):
                 "data": json.dumps(data),
             })
         )
-        logger.info("/%.3f/ T3" % (time() - start))
+        logger.info("/%.5f/ TE3" % (time() - start))
         http_client.fetch(request, self.handle_request)
-        logger.info("/%.3f/ T4" % (time() - start))
+        logger.info("/%.5f/ TE4" % (time() - start))
 
 
     @stats_decorator
@@ -215,25 +215,33 @@ class APIHandler(tornado.websocket.WebSocketHandler):
     def handle_request(self, response):
         # попробуем дожидаться ответа от базы и только после этого отправлять сообщение в вебморду
         result = json.loads(response.body)
+        #logger.info("result: %s" % result)
+        start = float(result['profile']['request_time'])
+        del result['profile']
+        logger.info("/%.5f/ TA6" % (time() - start))
         c.publish(self.channel, json.dumps({
             "env": "node",
             "node_id": self.node.id,
-            "data": result,
+            "data": result[str(self.node.id)],
         }))
 
 
     @stats_decorator
     def on_message(self, message):
+        start = time()
         if not message:
             return
         if len(message) > 10000:
             return
         # print message
+        logger.info("/%.5f/ TA1" % (time() - start))
         data = parse_device_string(message)
+        logger.info("/%.5f/ TA2" % (time() - start))
         # print data
         # API внесения изменения в базу
         # Так как тут мы не знаем id ламп и сенсоров, то сообщения в вебморды пойдут после ответа от базы
         http_client = tornado.httpclient.AsyncHTTPClient()
+        logger.info("/%.5f/ TA3" % (time() - start))
         request = tornado.httpclient.HTTPRequest(
             "".join([
                         settings.API_SYNC_URL
@@ -242,10 +250,13 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             body=urllib.urlencode({
                 "api_key": settings.API_KEY,
                 "node_id": self.node.id,
+                "request_time": time(),
                 "data": json.dumps(data),
             })
         )
+        logger.info("/%.5f/ TA4" % (time() - start))
         http_client.fetch(request, self.handle_request)
+        logger.info("/%.5f/ TA5" % (time() - start))
 
         # Сообщение отправляется во все другие сокеты
         # Нужно сделать выборку по ноде и юзеру и отправлять только в нужные каналы

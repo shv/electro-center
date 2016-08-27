@@ -134,8 +134,8 @@ def api_sync(request):
         Не требует обычной авторизации, проверка только по API
         Должен быть закрыт из внешнего мира
     """
-    # request_time = float(request.POST.get("request_time"))
-    # logger.info("/%.3f/ VA1" % (time() - request_time))
+    request_time = float(request.POST.get("request_time"))
+    logger.info("/%.5f/ VA1" % (time() - request_time))
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
         return {"error": "Please pass a correct API key."}
@@ -168,7 +168,7 @@ def api_sync(request):
     logger.debug("lamps: %s" % lamps)
     logger.debug("sensors: %s" % sensors)
 
-    result = []
+    result = {node.id: []}
     for lamp in lamps:
         if lamp.external_id in device_external_ids_by_type["lamp"]:
             new_lamp = device_external_ids_by_type["lamp"][lamp.external_id]
@@ -181,7 +181,7 @@ def api_sync(request):
             lamp.save()
             logger.debug("Saved Lamp: %s: %s (%s)" % (lamp.external_id, lamp.on, lamp.level))
 
-        result.append({
+        result[lamp.node_id].append({
             'node': node.id,
             'external_id': lamp.external_id,
             'on': lamp.on,
@@ -216,7 +216,7 @@ def api_sync(request):
                                             external_id=sensor.external_id
                                             )
 
-        result.append({
+        result[sensor.node_id].append({
             'node': node.id,
             'external_id': sensor.external_id,
             'object_type': 'sensor',
@@ -228,16 +228,16 @@ def api_sync(request):
     node.online = True
     node.save()
 
-    result.append({
+    result[node.id].append({
         'object_type': 'node',
         'id': node.id,
         'online': node.online,
         'last_answer_time': node.last_answer_time.isoformat(),
         })
 
-    # logger.info("/%.3f/ VA5 %s" % (time() - request_time, result))
+    logger.info("/%.5f/ VA5 %s" % (time() - request_time, result))
 
-    # result['profile'] = {'request_time': request_time};
+    result['profile'] = {'request_time': request_time};
     return result
 
 @csrf_exempt
@@ -250,19 +250,19 @@ def ecc_sync(request):
         Должен быть закрыт из внешнего мира
     """
     request_time = float(request.POST.get("request_time"))
-    logger.info("/%.3f/ VE1" % (time() - request_time))
+    logger.info("/%.5f/ VE1" % (time() - request_time))
     api_key = request.POST.get("api_key")
     if api_key != settings.API_KEY:
         return {"error": "Please pass a correct API key."}
     user_id = request.POST.get("user_id")
 
     device_list = json.loads(request.POST.get('data'))
-    logger.debug("/%.3f/ device_list: %s" % ((time() - request_time), device_list))
+    logger.debug("/%.5f/ device_list: %s" % ((time() - request_time), device_list))
     device_ids_by_type = {'lamp': {}, 'sensor': {}, 'zone_lamps': {}, 'all_lamps': {}}
     for device in device_list:
         device_ids_by_type[device["object_type"]][device.get("id")] = device
 
-    logger.debug("/%.3f/ device_ids_by_type: %s" % (time() - request_time, device_ids_by_type))
+    logger.debug("/%.5f/ device_ids_by_type: %s" % (time() - request_time, device_ids_by_type))
 
     nodes = {}
     lamps = []
@@ -292,13 +292,14 @@ def ecc_sync(request):
         sensors = Sensor.objects.filter(id__in=device_ids_by_type["sensor"].keys())
 
 
-    logger.debug("/%.3f/ lamps: %s" % (time() - request_time, lamps))
-    logger.debug("/%.3f/ sensors: %s" % (time() - request_time, sensors))
-    logger.debug("/%.3f/ lamps_for_zone: %s" % (time() - request_time, lamps_for_zone))
+    logger.debug("/%.5f/ lamps: %s" % (time() - request_time, lamps))
+    logger.debug("/%.5f/ sensors: %s" % (time() - request_time, sensors))
+    logger.debug("/%.5f/ lamps_for_zone: %s" % (time() - request_time, lamps_for_zone))
 
     for lamp in lamps:
         if lamp.node_id not in nodes:
             nodes[lamp.node_id] = Node.objects.get(id=lamp.node_id, owner_id=user_id)
+            logger.info("/%.5f/ Add node %s" % (time() - request_time, lamp.node_id))
 
         # Сначала проверяем единичные лампы, затем зону
         lamp_ = device_ids_by_type["lamp"].get(lamp.id, lamps_for_zone.get(lamp.id))
@@ -308,16 +309,18 @@ def ecc_sync(request):
             lamp.auto = lamp_["auto"]
         if lamp_.get("level") is not None:
             lamp.level = lamp_["level"]
+        logger.info("/%.5f/ Save lamp %s" % (time() - request_time, lamp.id))
         lamp.save()
+        logger.info("/%.5f/ Lamp %s saved" % (time() - request_time, lamp.id))
 
-    logger.info("/%.3f/ VE2" % (time() - request_time))
+    logger.info("/%.5f/ VE2" % (time() - request_time))
 
     for sensor in sensors:
         if sensor.node_id not in nodes:
             nodes[sensor.node_id] = Node.objects.get(id=sensor.node_id, owner_id=user_id)
             # TODO
 
-    logger.info("/%.3f/ VE3" % (time() - request_time))
+    logger.info("/%.5f/ VE3" % (time() - request_time))
 
     result = {'profile': {'request_time': request_time}}
     for lamp in lamps:
@@ -335,7 +338,7 @@ def ecc_sync(request):
             'level': lamp.level if lamp.dimmable else ''
             })
 
-    logger.info("/%.3f/ VE4" % (time() - request_time))
+    logger.info("/%.5f/ VE4" % (time() - request_time))
 
     for sensor in sensors:
         if sensor.node_id not in result:
@@ -349,6 +352,6 @@ def ecc_sync(request):
             'value': sensor.value
             })
 
-    logger.info("/%.3f/ VE5" % (time() - request_time))
+    logger.info("/%.5f/ VE5" % (time() - request_time))
 
     return result
