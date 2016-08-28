@@ -224,6 +224,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             "node_id": self.node.id,
             "data": result[str(self.node.id)],
         }))
+        logger.info("/%.5f/ TA7" % (time() - start))
 
 
     @stats_decorator

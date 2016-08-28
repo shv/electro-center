@@ -23,6 +23,7 @@ from time import time
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 1
+theme = "default"
 
 """ Нода может работать в двух режимах:
         Активный (не заполняем хост ноды)
@@ -61,7 +62,7 @@ def index(request):
     request_user = request.user if request.user.is_authenticated() else None
     sensors = Sensor.objects.filter(node__owner=request_user).all()
     return dict(
-        template = 'mainframe/index.html',
+        template = 'mainframe/themes/%s/index.html' % theme,
         sensors = sensors
     )
 
@@ -75,7 +76,7 @@ def zone(request, zone_id):
     zone = Zone.objects.get(id=zone_id, owner=request_user)
 
     return dict(
-        template = 'mainframe/zone.html',
+        template = 'mainframe/themes/%s/zone.html' % theme,
         active_menu = 'zones',
         zone = zone
     )
@@ -90,7 +91,7 @@ def node(request, node_id):
     node = Node.objects.get(id=node_id, owner=request_user)
 
     return dict(
-        template = 'mainframe/node.html',
+        template = 'mainframe/themes/%s/node.html' % theme,
         active_menu = 'nodes',
         node = node
     )
