@@ -27,7 +27,7 @@ from django.contrib.auth.models import User
 from mainframe.models import Node, Lamp, Zone
 from mainframe.utils import parse_device_string, generate_device_string, stats_decorator
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('tornado')
 
 c = brukva.Client()
 c.connect()
@@ -189,11 +189,12 @@ class APIHandler(tornado.websocket.WebSocketHandler):
 
         # https://github.com/tornadoweb/tornado/issues/1763
         if self.node.pinging:
-            self.ping_timeout = self.io_loop.call_later(
+            self.my_ping_timeout = self.io_loop.call_later(
                 delay=self.get_ping_timeout(initial=True),
                 callback=self._send_ping,
             )
 
+        logger.info(str(generate_device_string(result)))
         self.write_message(str(generate_device_string(result)))
 
 
@@ -202,7 +203,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
     def show_new_message(self, result):
         # Реакция на сообщение в редисе
         data = json.loads(result.body)
-        # print data
+        logger.info(data)
         if not (data["env"] == "node" and data["node_id"] == self.node.id):
             # Свои сообщения игнорируем
             self.write_message(str(generate_device_string(data["data"])))
@@ -214,8 +215,9 @@ class APIHandler(tornado.websocket.WebSocketHandler):
     @stats_decorator
     def handle_request(self, response):
         # попробуем дожидаться ответа от базы и только после этого отправлять сообщение в вебморду
+        logger.info("body: %s" % response.body)
         result = json.loads(response.body)
-        #logger.info("result: %s" % result)
+        logger.info("result: %s" % result)
         start = float(result['profile']['request_time'])
         del result['profile']
         logger.info("/%.5f/ TA6" % (time() - start))
@@ -234,7 +236,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
             return
         if len(message) > 10000:
             return
-        # print message
+        logger.info(message)
         logger.info("/%.5f/ TA1" % (time() - start))
         data = parse_device_string(message)
         logger.info("/%.5f/ TA2" % (time() - start))
@@ -279,6 +281,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
                     'last_answer_time': self.node.last_answer_time.isoformat()
             }],
         }))
+        logger.info("Node %s: Close connection" % self.node.id)
         try:
             self.client.unsubscribe(self.channel)
         except AttributeError:
@@ -315,10 +318,10 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         logger.info("Node %s: Received pong" % self.node.id)
         if hasattr(self, 'ping_timeout'):
             # clear timeout set by for ping pong (heartbeat) messages
-            self.io_loop.remove_timeout(self.ping_timeout)
+            self.io_loop.remove_timeout(self.my_ping_timeout)
 
         # send new ping message after `get_ping_timeout` time
-        self.ping_timeout = self.io_loop.call_later(
+        self.my_ping_timeout = self.io_loop.call_later(
             delay=self.get_ping_timeout(),
             callback=self._send_ping,
         )
@@ -332,7 +335,7 @@ class APIHandler(tornado.websocket.WebSocketHandler):
         """
         logger.info("Node %s: Sending ping" % self.node.id)
         self.ping(b'a')
-        self.ping_timeout = self.io_loop.call_later(
+        self.my_ping_timeout = self.io_loop.call_later(
             delay=self.get_pong_timeout(),
             callback=self._connection_timeout,
         )
